@@ -1,10 +1,9 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
-
 	"BACKEND/controllers"
 	"BACKEND/middlewares"
+	"github.com/gin-gonic/gin"
 )
 
 func RegisterRoutes(r *gin.Engine) {
@@ -18,13 +17,15 @@ func RegisterRoutes(r *gin.Engine) {
 	api.POST("/login", controllers.Login)
 
 	// ========================
-	// USER PROTECTED ROUTES
+	// USER PROFILE ROUTES
 	// ========================
-	protected := api.Group("/")
-	protected.Use(middlewares.AuthRequired())
+	user := api.Group("/user")
+	user.Use(middlewares.AuthRequired())
 
-	protected.GET("/me", controllers.GetMe)
-	protected.PUT("/me", controllers.UpdateMe)
+	user.GET("/profile", controllers.GetMe)
+	user.PUT("/profile", controllers.UpdateMe)
+	user.POST("/profile/upload-image", controllers.UploadProfileImage)
+	user.PUT("/profile/change-password", controllers.ChangePassword)
 
 	// ========================
 	// APPLY ORGANIZATION (USER ONLY)
@@ -36,15 +37,13 @@ func RegisterRoutes(r *gin.Engine) {
 	)
 
 	// ========================
-	// ORGANIZATION ROUTES (AFTER APPROVED)
+	// ORGANIZATION ROUTES
 	// ========================
 	org := api.Group("/organization")
 	org.Use(middlewares.AuthRequired(), middlewares.OrganizationOnly())
 
-	// nanti di sini:
-	// org.GET("/profile", controllers.GetOrganizationProfile)
-	// org.PUT("/profile", controllers.UpdateOrganizationProfile)
-	// org.POST("/events/create", controllers.CreateEvent)
+	org.GET("/profile", controllers.GetOrganizationProfile)
+	org.PUT("/profile", controllers.UpdateOrganizationProfile)
 
 	// ========================
 	// ADMIN ROUTES
@@ -57,13 +56,8 @@ func RegisterRoutes(r *gin.Engine) {
 	admin.PUT("/users/:id", controllers.UpdateUserByAdmin)
 	admin.DELETE("/users/:id", controllers.DeleteUser)
 	admin.POST("/users", controllers.CreateUserByAdmin)
+
 	admin.GET("/organization/applications", controllers.GetAllOrganizationApplications)
 	admin.GET("/organization/applications/:id", controllers.GetOrganizationApplicationByID)
 	admin.POST("/organization/applications/:id/review", controllers.ReviewOrganizationApplication)
-
-
-
-	// nanti admin review organization di sini:
-	// admin.GET("/organization/applications", controllers.GetAllOrganizationApplications)
-	// admin.POST("/organization/applications/:id/review", controllers.ReviewOrganization)
 }

@@ -10,6 +10,7 @@ import (
 	"BACKEND/models"
 )
 
+
 // ================================
 // GET PROFILE USER SENDIRI
 // ================================
@@ -18,7 +19,8 @@ func GetMe(c *gin.Context) {
 
 	var user models.User
 	err := config.DB.Get(&user,
-		"SELECT id, name, email FROM users WHERE id = ?",
+		`SELECT id, name, email, phone, profile_img, bio 
+		 FROM users WHERE id = ?`,
 		userID,
 	)
 
@@ -30,25 +32,33 @@ func GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+
 // ================================
 // UPDATE PROFILE USER SENDIRI
 // ================================
 type UpdateMeRequest struct {
-	Name string `json:"name"`
+	Name       string `json:"name"`
+	Phone      string `json:"phone"`
+	ProfileImg string `json:"profile_img"`
+	Bio        string `json:"bio"`
 }
 
 func UpdateMe(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	var req UpdateMeRequest
-	if c.ShouldBindJSON(&req) != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
 	_, err := config.DB.Exec(`
-		UPDATE users SET name = ? WHERE id = ?
-	`, req.Name, userID)
+		UPDATE users 
+		SET name = ?, phone = ?, profile_img = ?, bio = ?
+		WHERE id = ?
+	`,
+		req.Name, req.Phone, req.ProfileImg, req.Bio, userID,
+	)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
@@ -58,6 +68,7 @@ func UpdateMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
 }
 
+
 // ================================
 // ADMIN: GET ALL USERS
 // ================================
@@ -65,7 +76,8 @@ func GetAllUsers(c *gin.Context) {
 	var users []models.User
 
 	err := config.DB.Select(&users, `
-		SELECT id, name, email FROM users ORDER BY id DESC
+		SELECT id, name, email, phone, profile_img, bio 
+		FROM users ORDER BY id DESC
 	`)
 
 	if err != nil {
@@ -76,6 +88,7 @@ func GetAllUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
+
 // ================================
 // ADMIN: GET USER BY ID
 // ================================
@@ -84,7 +97,8 @@ func GetUserByID(c *gin.Context) {
 
 	var user models.User
 	err := config.DB.Get(&user,
-		"SELECT id, name, email FROM users WHERE id = ?",
+		`SELECT id, name, email, phone, profile_img, bio 
+		 FROM users WHERE id = ?`,
 		id,
 	)
 
@@ -96,12 +110,15 @@ func GetUserByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+
 // ================================
 // ADMIN: UPDATE USER
 // ================================
 type AdminUpdateUserRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
+	Phone string `json:"phone"`
+	Bio   string `json:"bio"`
 }
 
 func UpdateUserByAdmin(c *gin.Context) {
@@ -114,8 +131,10 @@ func UpdateUserByAdmin(c *gin.Context) {
 	}
 
 	_, err := config.DB.Exec(`
-		UPDATE users SET name=?, email=? WHERE id=?
-	`, req.Name, req.Email, id)
+		UPDATE users 
+		SET name=?, email=?, phone=?, bio=?
+		WHERE id=?
+	`, req.Name, req.Email, req.Phone, req.Bio, id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
@@ -125,13 +144,14 @@ func UpdateUserByAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }
 
+
 // ================================
 // ADMIN: DELETE USER
 // ================================
 func DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 
-	// Hapus relasi dulu
+	// Hapus relasi role
 	config.DB.Exec("DELETE FROM user_roles WHERE user_id=?", id)
 
 	_, err := config.DB.Exec("DELETE FROM users WHERE id=?", id)
@@ -143,6 +163,7 @@ func DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
 
+
 // ================================
 // ADMIN: CREATE NEW USER
 // ================================
@@ -150,7 +171,7 @@ type AdminCreateUserRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Role     string `json:"role"` // USER / ADMIN / ORGANIZATION
+	Role     string `json:"role"`
 }
 
 func CreateUserByAdmin(c *gin.Context) {
@@ -178,7 +199,7 @@ func CreateUserByAdmin(c *gin.Context) {
 
 	// Insert user
 	res, err := config.DB.Exec(`
-		INSERT INTO users (name, email, password_hash) 
+		INSERT INTO users (name, email, password_hash)
 		VALUES (?, ?, ?)
 	`, req.Name, req.Email, string(hash))
 

@@ -5,5 +5,9 @@ type User struct {
 	Name         string `db:"name"`
 	Email        string `db:"email"`
 	PasswordHash string `db:"password_hash"`
-	Password     string `json:"password" db:"-"`
+
+	Phone       string `db:"phone"`
+	ProfileImg  string `db:"profile_img"`
+	Bio         string `db:"bio"`
 }
+
