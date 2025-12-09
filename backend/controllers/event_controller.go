@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt" // <--- Penting untuk melihat error di terminal
 	"net/http"
 	"time"
 
@@ -45,9 +46,10 @@ func CreateEvent(c *gin.Context) {
 		return
 	}
 
+	// Update Query: Menambahkan publish_status default 'DRAFT'
 	res, err := config.DB.Exec(`
-		INSERT INTO events (organization_id, title, description, category, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO events (organization_id, title, description, category, publish_status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'DRAFT', ?, ?)
 	`,
 		orgID,
 		req.Title,
@@ -57,6 +59,7 @@ func CreateEvent(c *gin.Context) {
 		time.Now(),
 	)
 	if err != nil {
+		fmt.Println("❌ Error Create Event:", err) // <--- Debug Error
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
 		return
 	}
@@ -82,13 +85,18 @@ func ListMyEvents(c *gin.Context) {
 	}
 
 	var events []models.Event
+	// PERBAIKAN: Jangan pakai SELECT *, tapi sebutkan kolom satu per satu
+	// agar kolom 'is_published' (sisa lama) tidak ikut terambil dan bikin error.
 	err = config.DB.Select(&events, `
-		SELECT * FROM events 
+		SELECT id, organization_id, title, description, category, thumbnail_url, 
+		       publish_status, publish_at, created_at, updated_at 
+		FROM events 
 		WHERE organization_id = ?
 		ORDER BY created_at DESC
 	`, orgID)
 
 	if err != nil {
+		fmt.Println("❌ Error Fetching Events:", err) 
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch events"})
 		return
 	}
