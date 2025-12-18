@@ -79,9 +79,12 @@ func RegisterRoutes(r *gin.Engine) {
 	org.GET("/profile", controllers.GetOrganizationProfile)
 	org.PUT("/profile", controllers.UpdateOrganizationProfile)
 
-	// Event
+	// Event Management
 	org.POST("/events", controllers.CreateEvent)
 	org.GET("/events", controllers.ListMyEvents)
+	
+	// TAMBAHKAN INI 👇 (Endpoint khusus lihat detail event sendiri)
+	org.GET("/events/:eventID", controllers.GetMyEventDetail) 
 
 	// Sessions
 	org.POST("/events/:eventID/sessions", controllers.CreateSession)

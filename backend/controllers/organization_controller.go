@@ -1,12 +1,14 @@
 package controllers
 
 import (
+	"fmt" // <--- TAMBAHKAN INI (Wajib!)
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"BACKEND/config"
+	"BACKEND/models"
 )
 
 // =============================
@@ -77,5 +79,111 @@ func ApplyOrganization(c *gin.Context) {
 	// 4. Return success
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Organization application submitted successfully",
+	})
+}
+
+// Struktur Request untuk Sesi
+type CreateSessionRequest struct {
+	Title       string `json:"title" binding:"required"`
+	Description string `json:"description"`
+	Price       int64  `json:"price"`
+}
+
+// =======================================
+// ORGANIZATION: CREATE SESSION
+// =======================================
+func CreateSession(c *gin.Context) {
+	// 1. Ambil Event ID dari URL
+	eventID := c.Param("eventID")
+
+	// 2. Cek apakah User adalah pemilik Organization dari Event ini
+	userID := c.GetInt64("user_id")
+	orgID, err := getOrganizationIDByUser(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid organization"})
+		return
+	}
+
+	// Cek kepemilikan event (Opsional tapi bagus untuk keamanan)
+	var count int
+	config.DB.Get(&count, "SELECT COUNT(*) FROM events WHERE id = ? AND organization_id = ?", eventID, orgID)
+	if count == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Event not found or access denied"})
+		return
+	}
+
+	// 3. Validasi Input JSON
+	var req CreateSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 4. Insert ke Database (Gunakan time.Now() agar aman)
+	// Kita set order_index otomatis (ambil max + 1)
+	var maxOrder int
+	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM sessions WHERE event_id = ?", eventID)
+
+	res, err := config.DB.Exec(`
+		INSERT INTO sessions (event_id, title, description, price, order_index, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`,
+		eventID, req.Title, req.Description, req.Price, maxOrder+1, time.Now(),
+	)
+
+	if err != nil {
+		fmt.Println("❌ Error Create Session:", err) // Debug di terminal
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat sesi"})
+		return
+	}
+
+	sessionID, _ := res.LastInsertId()
+	c.JSON(http.StatusOK, gin.H{"message": "Session created!", "session_id": sessionID})
+}
+
+// =======================================
+// ORGANIZATION: GET MY EVENT DETAIL (Untuk Manage)
+// =======================================
+func GetMyEventDetail(c *gin.Context) {
+	eventID := c.Param("eventID")
+	userID := c.GetInt64("user_id")
+
+	// 1. Ambil Org ID user
+	orgID, err := getOrganizationIDByUser(userID)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid organization"})
+		return
+	}
+
+	// 2. Ambil Event (Tanpa filter PUBLISHED, tapi harus milik Org ID ini)
+	var event models.Event
+	err = config.DB.Get(&event, `
+		SELECT id, organization_id, title, description, category, thumbnail_url, 
+		       publish_status, publish_at, created_at, updated_at 
+		FROM events 
+		WHERE id = ? AND organization_id = ?
+	`, eventID, orgID)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found or access denied"})
+		return
+	}
+
+	// 3. Ambil Sesi-sesinya
+	var sessions []models.Session
+	err = config.DB.Select(&sessions, `
+		SELECT id, event_id, title, description, price, order_index, created_at 
+		FROM sessions 
+		WHERE event_id = ? 
+		ORDER BY order_index ASC
+	`, eventID)
+
+	if err != nil {
+		sessions = []models.Session{} // Kosongkan jika error/tidak ada sesi
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"event":    event,
+		"sessions": sessions,
 	})
 }
