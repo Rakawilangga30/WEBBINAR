@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"fmt" // <--- TAMBAHKAN INI (Wajib!)
+	"fmt"
 	"net/http"
 	"time"
 
@@ -93,10 +93,8 @@ type CreateSessionRequest struct {
 // ORGANIZATION: CREATE SESSION
 // =======================================
 func CreateSession(c *gin.Context) {
-	// 1. Ambil Event ID dari URL
 	eventID := c.Param("eventID")
 
-	// 2. Cek apakah User adalah pemilik Organization dari Event ini
 	userID := c.GetInt64("user_id")
 	orgID, err := getOrganizationIDByUser(userID)
 	if err != nil {
@@ -104,7 +102,7 @@ func CreateSession(c *gin.Context) {
 		return
 	}
 
-	// Cek kepemilikan event (Opsional tapi bagus untuk keamanan)
+	// Cek kepemilikan event
 	var count int
 	config.DB.Get(&count, "SELECT COUNT(*) FROM events WHERE id = ? AND organization_id = ?", eventID, orgID)
 	if count == 0 {
@@ -112,15 +110,12 @@ func CreateSession(c *gin.Context) {
 		return
 	}
 
-	// 3. Validasi Input JSON
 	var req CreateSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 4. Insert ke Database (Gunakan time.Now() agar aman)
-	// Kita set order_index otomatis (ambil max + 1)
 	var maxOrder int
 	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM sessions WHERE event_id = ?", eventID)
 
@@ -132,7 +127,7 @@ func CreateSession(c *gin.Context) {
 	)
 
 	if err != nil {
-		fmt.Println("❌ Error Create Session:", err) // Debug di terminal
+		fmt.Println("❌ Error Create Session:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat sesi"})
 		return
 	}
@@ -142,7 +137,7 @@ func CreateSession(c *gin.Context) {
 }
 
 // =======================================
-// ORGANIZATION: GET MY EVENT DETAIL (Untuk Manage)
+// ORGANIZATION: GET MY EVENT DETAIL
 // =======================================
 func GetMyEventDetail(c *gin.Context) {
 	eventID := c.Param("eventID")
@@ -155,7 +150,7 @@ func GetMyEventDetail(c *gin.Context) {
 		return
 	}
 
-	// 2. Ambil Event (Tanpa filter PUBLISHED, tapi harus milik Org ID ini)
+	// 2. Ambil Event (DRAFT maupun PUBLISHED, asalkan milik org ini)
 	var event models.Event
 	err = config.DB.Get(&event, `
 		SELECT id, organization_id, title, description, category, thumbnail_url, 
@@ -169,7 +164,7 @@ func GetMyEventDetail(c *gin.Context) {
 		return
 	}
 
-	// 3. Ambil Sesi-sesinya
+	// 3. Ambil Sesi
 	var sessions []models.Session
 	err = config.DB.Select(&sessions, `
 		SELECT id, event_id, title, description, price, order_index, created_at 
@@ -179,7 +174,7 @@ func GetMyEventDetail(c *gin.Context) {
 	`, eventID)
 
 	if err != nil {
-		sessions = []models.Session{} // Kosongkan jika error/tidak ada sesi
+		sessions = []models.Session{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -30,7 +30,7 @@ func RegisterRoutes(r *gin.Engine) {
 	// SIGNED URL GENERATORS
 	// ===============================
 	// Ini tetap butuh login (user.GET) karena user minta linknya lewat aplikasi
-	
+
 	// ========================
 	// USER ROUTES (BUTUH LOGIN)
 	// ========================
@@ -82,9 +82,8 @@ func RegisterRoutes(r *gin.Engine) {
 	// Event Management
 	org.POST("/events", controllers.CreateEvent)
 	org.GET("/events", controllers.ListMyEvents)
-	
-	// TAMBAHKAN INI 👇 (Endpoint khusus lihat detail event sendiri)
-	org.GET("/events/:eventID", controllers.GetMyEventDetail) 
+
+	org.GET("/events/:eventID", controllers.GetMyEventDetail)
 
 	// Sessions
 	org.POST("/events/:eventID/sessions", controllers.CreateSession)
@@ -96,15 +95,15 @@ func RegisterRoutes(r *gin.Engine) {
 	// Ambil media
 	org.GET("/sessions/:sessionID/media", controllers.GetSessionMedia)
 
-	// EVENT publish
-	org.PUT("/events/:id/publish", controllers.PublishEvent)
-	org.PUT("/events/:id/unpublish", controllers.UnpublishEvent)
-	org.PUT("/events/:id/schedule", controllers.SchedulePublish)
+	// Event Publish
+    org.PUT("/events/:id/publish", controllers.PublishEvent)
+    org.PUT("/events/:id/unpublish", controllers.UnpublishEvent)
+    org.PUT("/events/:id/schedule", controllers.SchedulePublish) // <--- PASTIKAN ADA
 
-	// SESSION publish
-	org.PUT("/sessions/:sessionID/publish", controllers.PublishSession)
-	org.PUT("/sessions/:sessionID/unpublish", controllers.UnpublishSession)
-	org.PUT("/sessions/:sessionID/schedule", controllers.ScheduleSessionPublish)
+    // Session Publish
+    org.PUT("/sessions/:sessionID/publish", controllers.PublishSession)
+    org.PUT("/sessions/:sessionID/unpublish", controllers.UnpublishSession)
+    org.PUT("/sessions/:sessionID/schedule", controllers.ScheduleSessionPublish)
 
 	// PUBLIC EVENT LISTING
 	api.GET("/events", controllers.ListPublicEvents)

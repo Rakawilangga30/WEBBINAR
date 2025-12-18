@@ -9,50 +9,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-/// =========================
-// GET EVENT DETAIL (PUBLIC)
-// =========================
-func GetEventDetail(c *gin.Context) {
-
-	eventID := c.Param("eventID")
-
-	// Ambil event
-	var event models.Event
-	// PERBAIKAN: Ganti 'is_published' menjadi 'publish_status'
-	err := config.DB.Get(&event, `
-        SELECT id, organization_id, title, description, category, thumbnail_url, 
-               publish_status, created_at 
-        FROM events 
-        WHERE id = ?
-    `, eventID)
-
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
-		return
-	}
-
-	// Ambil sesi
-	var sessions []models.SessionSummary
-	err = config.DB.Select(&sessions, `
-        SELECT id, title, price, order_index
-        FROM sessions
-        WHERE event_id = ?
-        ORDER BY order_index ASC
-    `, eventID)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load sessions"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"event":    event,
-		"sessions": sessions,
-	})
-}
+// Struct khusus untuk respon list agar ringan
 type PublicEventResponse struct {
 	ID               int64   `db:"id" json:"id"`
 	Title            string  `db:"title" json:"title"`
+	Description      string  `db:"description" json:"description"` // Tambahkan deskripsi untuk preview
 	Category         string  `db:"category" json:"category"`
 	ThumbnailURL     *string `db:"thumbnail_url" json:"thumbnail_url"`
 	OrganizationName string  `db:"organization_name" json:"organization_name"`
@@ -61,17 +22,19 @@ type PublicEventResponse struct {
 	PublishAt        *string `db:"publish_at" json:"publish_at"`
 }
 
-// ===============================
-// GET ALL PUBLIC PUBLISHED EVENTS
-// ===============================
+// =========================================================
+// GET ALL PUBLIC EVENTS (Published & Scheduled separated)
+// =========================================================
 func ListPublicEvents(c *gin.Context) {
 
-	category := c.Query("category") // optional filter
+	category := c.Query("category") // Filter opsional
 
-	query := `
+	// Base Query: Join Event dengan Organization & Hitung Sesi/Harga
+	baseQuery := `
 		SELECT 
 			e.id,
 			e.title,
+			e.description,
 			e.category,
 			e.thumbnail_url,
 			o.name AS organization_name,
@@ -80,26 +43,85 @@ func ListPublicEvents(c *gin.Context) {
 			e.publish_at
 		FROM events e
 		JOIN organizations o ON o.id = e.organization_id
-		WHERE e.publish_status = 'PUBLISHED'
 	`
 
-	params := []interface{}{}
+	// 1. Ambil Event PUBLISHED (Sedang Tayang)
+	// ----------------------------------------
+	queryPub := baseQuery + " WHERE e.publish_status = 'PUBLISHED'"
+	paramsPub := []interface{}{}
 
 	if category != "" {
-		query += " AND e.category = ?"
-		params = append(params, category)
+		queryPub += " AND e.category = ?"
+		paramsPub = append(paramsPub, category)
+	}
+	queryPub += " ORDER BY e.created_at DESC"
+
+	var publishedEvents []PublicEventResponse
+	err := config.DB.Select(&publishedEvents, queryPub, paramsPub...)
+	if err != nil {
+		publishedEvents = []PublicEventResponse{} // Return array kosong jika error/tidak ada data
 	}
 
-	query += " ORDER BY e.publish_at DESC"
+	// 2. Ambil Event SCHEDULED (Coming Soon / Upcoming)
+	// -------------------------------------------------
+	queryUp := baseQuery + " WHERE e.publish_status = 'SCHEDULED'"
+	paramsUp := []interface{}{}
 
-	var events []PublicEventResponse
-	err := config.DB.Select(&events, query, params...)
+	if category != "" {
+		queryUp += " AND e.category = ?"
+		paramsUp = append(paramsUp, category)
+	}
+	// Urutkan berdasarkan tanggal tayang (yang paling dekat tayang duluan)
+	queryUp += " ORDER BY e.publish_at ASC"
+
+	var upcomingEvents []PublicEventResponse
+	err = config.DB.Select(&upcomingEvents, queryUp, paramsUp...)
+	if err != nil {
+		upcomingEvents = []PublicEventResponse{}
+	}
+
+	// Kirim kedua list ke Frontend
+	c.JSON(http.StatusOK, gin.H{
+		"events":   publishedEvents,
+		"upcoming": upcomingEvents,
+	})
+}
+
+// =========================
+// GET EVENT DETAIL (PUBLIC)
+// =========================
+func GetEventDetail(c *gin.Context) {
+
+	eventID := c.Param("eventID")
+
+	// 1. Ambil Detail Event
+	// Kita izinkan user melihat event 'SCHEDULED' juga sebagai preview
+	var event models.Event
+	err := config.DB.Get(&event, `
+		SELECT * FROM events 
+		WHERE id = ? AND (publish_status = 'PUBLISHED' OR publish_status = 'SCHEDULED')
+	`, eventID)
 
 	if err != nil {
-		// log and return error details to help debugging
-		c.JSON(500, gin.H{"error": "Failed to fetch events", "details": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found or not available yet"})
 		return
 	}
 
-	c.JSON(200, gin.H{"events": events})
+	// 2. Ambil Daftar Sesi
+	// Kita juga tampilkan sesi yang Published atau Scheduled (agar user tau silabusnya)
+	var sessions []models.Session
+	err = config.DB.Select(&sessions, `
+		SELECT * FROM sessions
+		WHERE event_id = ? AND (publish_status = 'PUBLISHED' OR publish_status = 'SCHEDULED')
+		ORDER BY order_index ASC
+	`, eventID)
+
+	if err != nil {
+		sessions = []models.Session{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"event":    event,
+		"sessions": sessions,
+	})
 }

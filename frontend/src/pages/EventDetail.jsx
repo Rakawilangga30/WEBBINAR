@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom"; // Pastikan Link diimport
 import api from "../api";
 
 export default function EventDetail() {
@@ -7,15 +7,22 @@ export default function EventDetail() {
     const [event, setEvent] = useState(null);
     const [sessions, setSessions] = useState([]);
     
-    // State untuk materi yang sedang aktif
+    // State Loading & Error
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null); // <--- State Error Baru
+
+    // State Media Player
     const [selectedSessionMedia, setSelectedSessionMedia] = useState(null); 
     const [activeVideoUrl, setActiveVideoUrl] = useState(null); 
+    const [expandedMediaId, setExpandedMediaId] = useState(null);
 
     useEffect(() => {
         fetchEventDetail();
     }, [id]);
 
     const fetchEventDetail = async () => {
+        setLoading(true);
+        setError(null);
         try {
             const response = await api.get(`/events/${id}`);
             setEvent(response.data.event);
@@ -27,8 +34,16 @@ export default function EventDetail() {
             if (token) {
                 checkPurchaseStatus(initialSessions);
             }
-        } catch (error) {
-            console.error("Gagal ambil detail event", error);
+        } catch (err) {
+            console.error("Gagal ambil detail event", err);
+            // Tangkap error 404
+            if (err.response && err.response.status === 404) {
+                setError("Event tidak ditemukan atau belum dipublikasikan.");
+            } else {
+                setError("Terjadi kesalahan saat memuat event.");
+            }
+        } finally {
+            setLoading(false); // <--- PENTING: Matikan loading apa pun yang terjadi
         }
     };
 
@@ -43,6 +58,10 @@ export default function EventDetail() {
         }));
         setSessions(updatedSessions);
     };
+
+    // ... (Sisa fungsi handleBuy, handleOpenMaterial, dll SAMA SEPERTI SEBELUMNYA) ...
+    // Copy ulang fungsi-fungsi tersebut dari kode sebelumnya jika perlu, 
+    // atau biarkan kode di bawah ini jika Anda mau yang bersih:
 
     const handleBuy = async (sessionID) => {
         if (!confirm("Yakin mau beli sesi ini?")) return;
@@ -60,61 +79,56 @@ export default function EventDetail() {
             const res = await api.get(`/user/sessions/${sessionID}/media`);
             setSelectedSessionMedia(res.data);
             setActiveVideoUrl(null); 
-            // Scroll ke area belajar di kanan (opsional, bagus untuk UX di HP)
+            setExpandedMediaId(null); 
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (error) {
             alert("Gagal membuka materi: " + (error.response?.data?.error || "Error"));
         }
     };
 
-    // --- FUNGSI PLAY VIDEO (PERBAIKAN) ---
+    const toggleMedia = (id) => {
+        if (expandedMediaId === id) setExpandedMediaId(null);
+        else setExpandedMediaId(id);
+    };
+
     const handlePlayVideo = async (videoUrl) => {
-        if (!videoUrl) {
-            alert("URL video tidak valid!");
-            return;
-        }
-
+        if (!videoUrl) return alert("URL video tidak valid!");
         try {
-            // Ambil nama file dari path database (misal: "uploads/videos/abc.mp4" -> "abc.mp4")
-            const filename = videoUrl.split("/").pop();
-            console.log("Request Signed URL untuk:", filename);
-
-            // Minta URL aman ke backend
+            const filename = videoUrl.split(/[/\\]/).pop(); 
             const res = await api.get(`/user/sessions/signed-video/${filename}`);
-            
-            // Gabungkan dengan base URL backend
             const fullUrl = `http://localhost:8080${res.data.url}`;
-            console.log("Video Stream URL:", fullUrl);
-
             setActiveVideoUrl(fullUrl);
-            
+            setTimeout(() => {
+                document.getElementById("video-player-area")?.scrollIntoView({ behavior: "smooth" });
+            }, 100);
         } catch (error) {
-            console.error("Gagal load video:", error);
-            alert("Gagal memuat video! Cek Console.");
+            alert("Gagal memuat video! Pastikan Anda sudah login.");
         }
     };
 
-    // --- FUNGSI BUKA FILE (PDF/PPT) ---
     const handleOpenFile = async (fileUrl) => {
-        if (!fileUrl) {
-            alert("URL file tidak valid!");
-            return;
-        }
-
+        if (!fileUrl) return alert("URL file tidak valid!");
         try {
-            const filename = fileUrl.split("/").pop();
+            const filename = fileUrl.split(/[/\\]/).pop();
             const res = await api.get(`/user/sessions/signed-file/${filename}`);
             const fullUrl = `http://localhost:8080${res.data.url}`;
-            
-            // Buka di tab baru
             window.open(fullUrl, '_blank');
         } catch (error) {
-            console.error("Gagal load file", error);
             alert("Gagal memuat file!");
         }
     };
 
-    if (!event) return <div style={{padding: "50px", textAlign: "center"}}>Loading Event...</div>;
+    // --- TAMPILAN JIKA LOADING / ERROR ---
+    if (loading) return <div style={{padding: "50px", textAlign: "center"}}>⏳ Memuat Event...</div>;
+    
+    if (error) return (
+        <div style={{padding: "50px", textAlign: "center", color: "red"}}>
+            <h2>⚠️ {error}</h2>
+            <Link to="/dashboard" style={{color: "blue", textDecoration: "underline"}}>Kembali ke Dashboard</Link>
+        </div>
+    );
+
+    if (!event) return null;
 
     return (
         <div style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "1200px", margin: "0 auto" }}>
@@ -123,9 +137,17 @@ export default function EventDetail() {
             <div style={{ marginBottom: "30px", borderBottom: "2px solid #ddd", paddingBottom: "20px" }}>
                 <h1 style={{ marginBottom: "10px" }}>{event.title}</h1>
                 <p style={{ color: "#555", fontSize: "1.1em" }}>{event.description}</p>
-                <span style={{ background: "#eee", padding: "5px 15px", borderRadius: "20px", fontSize: "0.9em", fontWeight: "bold" }}>
-                    {event.category}
-                </span>
+                <div style={{display: "flex", gap: "10px", alignItems: "center"}}>
+                     <span style={{ background: "#eee", padding: "5px 15px", borderRadius: "20px", fontSize: "0.9em", fontWeight: "bold" }}>
+                        {event.category}
+                    </span>
+                    {/* Badge jika ini Scheduled */}
+                    {event.publish_status === 'SCHEDULED' && (
+                        <span style={{ background: "#feebc8", color:"#744210", padding: "5px 15px", borderRadius: "20px", fontSize: "0.9em", fontWeight: "bold" }}>
+                            📅 Upcoming (Tayang: {new Date(event.publish_at).toLocaleDateString()})
+                        </span>
+                    )}
+                </div>
             </div>
 
             <div style={{ display: "flex", gap: "30px", flexDirection: "row", flexWrap: "wrap" }}>
@@ -152,16 +174,23 @@ export default function EventDetail() {
                             ) : (
                                 <button 
                                     onClick={() => handleBuy(s.id)}
-                                    style={{ width: "100%", background: "#3182ce", color: "white", padding: "10px", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}
+                                    // Disable tombol beli jika event belum rilis (Scheduled)
+                                    disabled={event.publish_status === 'SCHEDULED'}
+                                    style={{ 
+                                        width: "100%", 
+                                        background: event.publish_status === 'SCHEDULED' ? "#ccc" : "#3182ce", 
+                                        cursor: event.publish_status === 'SCHEDULED' ? "not-allowed" : "pointer",
+                                        color: "white", padding: "10px", border: "none", borderRadius: "5px", fontWeight: "bold" 
+                                    }}
                                 >
-                                    🛒 Beli Sesi Ini
+                                    {event.publish_status === 'SCHEDULED' ? "Belum Dibuka" : "🛒 Beli Sesi Ini"}
                                 </button>
                             )}
                         </div>
                     ))}
                 </div>
 
-                {/* KANAN: Area Belajar (Video Player & File List) */}
+                {/* KANAN: Area Belajar */}
                 <div style={{ flex: 2, minWidth: "300px", border: "1px solid #ddd", padding: "25px", borderRadius: "8px", background: "#fafafa", minHeight: "500px" }}>
                     <h2 style={{ marginTop: 0, borderBottom: "1px solid #ccc", paddingBottom: "10px" }}>Area Belajar</h2>
                     
@@ -171,71 +200,49 @@ export default function EventDetail() {
                         </div>
                     ) : (
                         <div>
-                            {/* --- Video Section --- */}
-                            <h3 style={{ marginTop: 0 }}>📺 Video Pembelajaran</h3>
-                            
-                            {selectedSessionMedia.videos.length === 0 ? (
-                                <p style={{ color: "#888", fontStyle: "italic", marginBottom: "20px" }}>Tidak ada video di sesi ini.</p>
-                            ) : (
-                                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "30px" }}>
-                                    {selectedSessionMedia.videos.map((vid) => (
-                                        <button 
-                                            key={vid.id}
-                                            onClick={() => handlePlayVideo(vid.video_url)}
-                                            style={{ 
-                                                display: "flex", alignItems: "center", gap: "15px",
-                                                padding: "15px", background: "white", border: "1px solid #ccc", 
-                                                borderRadius: "8px", cursor: "pointer", textAlign: "left",
-                                                transition: "0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-                                            }}
-                                            onMouseOver={(e) => e.currentTarget.style.background = "#eef"}
-                                            onMouseOut={(e) => e.currentTarget.style.background = "white"}
-                                        >
-                                            <div style={{ fontSize: "1.5em" }}>▶️</div>
-                                            <div>
-                                                <div style={{ fontWeight: "bold", color: "#2c5282", fontSize: "1.1em" }}>{vid.title}</div>
-                                                <div style={{ fontSize: "0.8em", color: "#777" }}>Klik untuk memutar</div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Player Video */}
+                            {/* PLAYER VIDEO */}
                             {activeVideoUrl && (
-                                <div style={{ marginBottom: "40px", background: "black", borderRadius: "8px", overflow: "hidden", boxShadow: "0 4px 10px rgba(0,0,0,0.3)" }}>
+                                <div id="video-player-area" style={{ marginBottom: "30px", background: "black", borderRadius: "8px", overflow: "hidden" }}>
                                     <video controls width="100%" height="400px" src={activeVideoUrl} autoPlay />
                                 </div>
                             )}
 
-                            <hr style={{ margin: "30px 0", border: "0", borderTop: "1px solid #ddd" }} />
-                            
-                            {/* --- File Section --- */}
-                            <h3>📄 Dokumen Pendukung (PDF/PPT)</h3>
-                            
-                            {selectedSessionMedia.files.length === 0 ? (
-                                <p style={{ color: "#888", fontStyle: "italic" }}>Tidak ada file materi.</p>
-                            ) : (
+                            {/* LIST VIDEO */}
+                            <h3 style={{ marginTop: 0, color: "#2b6cb0" }}>📺 Video Pembelajaran</h3>
+                            {selectedSessionMedia.videos.length === 0 ? <p style={{color:"#888"}}>Tidak ada video.</p> : (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "30px" }}>
+                                    {selectedSessionMedia.videos.map((vid) => (
+                                        <div key={vid.id} style={{border:"1px solid #ddd", borderRadius:"5px", background:"white"}}>
+                                            <div onClick={() => toggleMedia(vid.id)} style={{padding:"10px", cursor:"pointer", fontWeight:"bold", background:"#f7fafc"}}>
+                                                🎥 {vid.title} {expandedMediaId === vid.id ? "🔼" : "🔽"}
+                                            </div>
+                                            {expandedMediaId === vid.id && (
+                                                <div style={{padding:"10px", borderTop:"1px solid #eee"}}>
+                                                    <p>{vid.description}</p>
+                                                    <button onClick={() => handlePlayVideo(vid.video_url)} style={{background:"#e53e3e", color:"white", border:"none", padding:"5px 10px", borderRadius:"3px", cursor:"pointer"}}>▶️ Putar</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* LIST FILE */}
+                            <h3 style={{ color: "#c05621" }}>📄 Modul Dokumen</h3>
+                            {selectedSessionMedia.files.length === 0 ? <p style={{color:"#888"}}>Tidak ada file.</p> : (
                                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                     {selectedSessionMedia.files.map((f) => (
-                                        <button 
-                                            key={f.id}
-                                            onClick={() => handleOpenFile(f.file_url)}
-                                            style={{ 
-                                                display: "flex", alignItems: "center", gap: "15px",
-                                                padding: "15px", background: "white", border: "1px solid #ccc", 
-                                                borderRadius: "8px", cursor: "pointer", textAlign: "left",
-                                                boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-                                            }}
-                                            onMouseOver={(e) => e.currentTarget.style.background = "#fffaf0"}
-                                            onMouseOut={(e) => e.currentTarget.style.background = "white"}
-                                        >
-                                            <div style={{ fontSize: "1.5em" }}>📄</div>
-                                            <div>
-                                                <div style={{ fontWeight: "bold", color: "#2d3748", fontSize: "1.1em" }}>{f.title}</div>
-                                                <div style={{ fontSize: "0.8em", color: "#777" }}>Klik untuk membuka di tab baru</div>
+                                        <div key={f.id} style={{border:"1px solid #ddd", borderRadius:"5px", background:"white"}}>
+                                            <div onClick={() => toggleMedia(`file-${f.id}`)} style={{padding:"10px", cursor:"pointer", fontWeight:"bold", background:"#fffaf0"}}>
+                                                📑 {f.title} {expandedMediaId === `file-${f.id}` ? "🔼" : "🔽"}
                                             </div>
-                                        </button>
+                                            {expandedMediaId === `file-${f.id}` && (
+                                                <div style={{padding:"10px", borderTop:"1px solid #eee"}}>
+                                                    <p>{f.description}</p>
+                                                    <button onClick={() => handleOpenFile(f.file_url)} style={{background:"#dd6b20", color:"white", border:"none", padding:"5px 10px", borderRadius:"3px", cursor:"pointer"}}>📄 Buka</button>
+                                                </div>
+                                            )}
+                                        </div>
                                     ))}
                                 </div>
                             )}

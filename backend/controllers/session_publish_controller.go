@@ -1,119 +1,85 @@
 package controllers
 
 import (
+	"net/http"
 	"strconv"
-
-	"BACKEND/config"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"BACKEND/config"
 )
 
-// ==========================================================
+func checkSessionOwnedByUserID(sessionID int64, userID int64) bool {
+	var count int
+	config.DB.Get(&count, `SELECT COUNT(*) FROM sessions s JOIN events e ON s.event_id = e.id JOIN organizations o ON e.organization_id = o.id WHERE s.id = ? AND o.owner_user_id = ?`, sessionID, userID)
+	return count > 0
+}
+
 // 1. PUBLISH SESSION
-// ==========================================================
 func PublishSession(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	sessionIDstr := c.Param("sessionID")
+	sessionID, _ := strconv.ParseInt(c.Param("sessionID"), 10, 64)
 
-	sessionID, err := strconv.ParseInt(sessionIDstr, 10, 64)
+	if !checkSessionOwnedByUserID(sessionID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	_, err := config.DB.Exec(`UPDATE sessions SET publish_status = 'PUBLISHED', publish_at = NULL WHERE id = ?`, sessionID)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "Invalid session ID"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to publish session"})
 		return
 	}
-
-	if !checkSessionOwnedByUser(sessionID, userID) {
-		c.JSON(403, gin.H{"error": "You do not own this session"})
-		return
-	}
-
-	_, err = config.DB.Exec(`
-		UPDATE sessions
-		SET publish_status = 'PUBLISHED', publish_at = NULL
-		WHERE id = ?
-	`, sessionID)
-
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to publish session"})
-		return
-	}
-
-	c.JSON(200, gin.H{"message": "Session published successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Session published!", "status": "PUBLISHED"})
 }
 
-// ==========================================================
 // 2. UNPUBLISH SESSION
-// ==========================================================
 func UnpublishSession(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	sessionIDstr := c.Param("sessionID")
+	sessionID, _ := strconv.ParseInt(c.Param("sessionID"), 10, 64)
 
-	sessionID, err := strconv.ParseInt(sessionIDstr, 10, 64)
+	if !checkSessionOwnedByUserID(sessionID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	_, err := config.DB.Exec(`UPDATE sessions SET publish_status = 'DRAFT', publish_at = NULL WHERE id = ?`, sessionID)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "Invalid session ID"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unpublish session"})
 		return
 	}
-
-	if !checkSessionOwnedByUser(sessionID, userID) {
-		c.JSON(403, gin.H{"error": "You do not own this session"})
-		return
-	}
-
-	_, err = config.DB.Exec(`
-		UPDATE sessions
-		SET publish_status = 'DRAFT', publish_at = NULL
-		WHERE id = ?
-	`, sessionID)
-
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to unpublish session"})
-		return
-	}
-
-	c.JSON(200, gin.H{"message": "Session set to draft"})
+	c.JSON(http.StatusOK, gin.H{"message": "Session drafted!", "status": "DRAFT"})
 }
 
-// ==========================================================
-// 3. SCHEDULE SESSION PUBLISH
-// ==========================================================
-type ScheduleSessionPublishRequest struct {
-	PublishAt string `json:"publish_at" binding:"required"`
-}
-
+// 3. SCHEDULE SESSION (FIX Parsing Tanggal)
 func ScheduleSessionPublish(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	sessionIDstr := c.Param("sessionID")
+	sessionID, _ := strconv.ParseInt(c.Param("sessionID"), 10, 64)
 
-	sessionID, err := strconv.ParseInt(sessionIDstr, 10, 64)
-	if err != nil {
-		c.JSON(400, gin.H{"error": "Invalid session ID"})
+	if !checkSessionOwnedByUserID(sessionID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
 
-	if !checkSessionOwnedByUser(sessionID, userID) {
-		c.JSON(403, gin.H{"error": "You do not own this session"})
-		return
+	var req struct {
+		PublishAt string `json:"publish_at" binding:"required"`
 	}
-
-	var req ScheduleSessionPublishRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid data"})
 		return
 	}
 
-	_, err = config.DB.Exec(`
-		UPDATE sessions
-		SET publish_status = 'SCHEDULED',
-		    publish_at = ?
-		WHERE id = ?
-	`, req.PublishAt, sessionID)
-
+	// Parsing ISO Date String ke Time Object
+	parsedTime, err := time.Parse(time.RFC3339, req.PublishAt)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to schedule session publish"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format. Use ISO8601"})
 		return
 	}
 
-	c.JSON(200, gin.H{
-		"message":    "Session scheduled successfully",
-		"publish_at": req.PublishAt,
-	})
+	_, err = config.DB.Exec(`UPDATE sessions SET publish_status = 'SCHEDULED', publish_at = ? WHERE id = ?`, parsedTime, sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to schedule session"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Session scheduled!", "status": "SCHEDULED", "publish_at": req.PublishAt})
 }

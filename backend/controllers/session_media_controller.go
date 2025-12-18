@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -12,89 +14,82 @@ import (
 	"BACKEND/models"
 )
 
-const MaxVideoSize = 1 << 30 // 1 GB = 1 * 2^30 bytes
-
-// cek session dimiliki event yang dimiliki user
-
+const MaxVideoSize = 1 << 30 // 1 GB
 // =======================================
 // UPLOAD VIDEO KE SESI
 // =======================================
 func UploadSessionVideo(c *gin.Context) {
+	sessionIDStr := c.Param("sessionID")
 	userID := c.GetInt64("user_id")
-	sessionIDParam := c.Param("sessionID")
 
 	var sessionID int64
-	if _, err := fmt.Sscan(sessionIDParam, &sessionID); err != nil {
+	if _, err := fmt.Sscan(sessionIDStr, &sessionID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
 		return
 	}
 
+	// Cek Kepemilikan (PENTING)
 	if !checkSessionOwnedByUser(sessionID, userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't own this session"})
 		return
 	}
 
-	file, err := c.FormFile("video")
+	// 1. Ambil File
+	file, header, err := c.Request.FormFile("video")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Video file is required"})
 		return
 	}
+	defer file.Close()
 
-	if file.Size > MaxVideoSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Video size exceeds 1GB limit"})
+	// 2. Ambil Input Judul & Deskripsi
+	titleInput := c.PostForm("title")
+	descriptionInput := c.PostForm("description")
+
+	finalTitle := titleInput
+	if finalTitle == "" {
+		finalTitle = header.Filename
+	}
+
+	// 3. Simpan File
+	ext := filepath.Ext(header.Filename)
+	uniqueName := fmt.Sprintf("session_%d_%d%s", sessionID, time.Now().Unix(), ext)
+	filePath := "uploads/videos/" + uniqueName
+
+	os.MkdirAll("uploads/videos", os.ModePerm)
+
+	out, err := os.Create(filePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save video file"})
 		return
 	}
+	defer out.Close()
+	io.Copy(out, file)
 
-	ext := filepath.Ext(file.Filename)
-	switch ext {
-	case ".mp4", ".mkv", ".mov", ".avi":
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only mp4/mkv/mov/avi allowed"})
-		return
-	}
-
-	title := c.PostForm("title")
-	if title == "" {
-		title = file.Filename
-	}
-
-	filename := fmt.Sprintf("session_%d_%d%s", sessionID, time.Now().Unix(), ext)
-	path := "uploads/videos/" + filename
-
-	if err := c.SaveUploadedFile(file, path); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save video"})
-		return
-	}
-
-	// order_index
+	// 4. Update Database
 	var maxOrder int
-	config.DB.Get(&maxOrder, `
-		SELECT COALESCE(MAX(order_index), 0) FROM session_videos WHERE session_id = ?
-	`, sessionID)
-
-	newOrder := maxOrder + 1
+	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM session_videos WHERE session_id = ?", sessionID)
 
 	_, err = config.DB.Exec(`
-		INSERT INTO session_videos (session_id, title, video_url, size_bytes, order_index, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO session_videos (session_id, title, description, video_url, size_bytes, order_index, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`,
 		sessionID,
-		title,
-		path,
-		file.Size,
-		newOrder,
+		finalTitle,
+		descriptionInput,
+		filePath,
+		header.Size,
+		maxOrder+1,
 		time.Now(),
 	)
 
 	if err != nil {
+		fmt.Println("Error upload video DB:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save video metadata"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Video uploaded successfully",
-		"path":    path,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Video uploaded successfully"})
 }
 
 // =======================================
@@ -110,6 +105,7 @@ func UploadSessionFile(c *gin.Context) {
 		return
 	}
 
+	// Cek Kepemilikan
 	if !checkSessionOwnedByUser(sessionID, userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't own this session"})
 		return
@@ -129,13 +125,18 @@ func UploadSessionFile(c *gin.Context) {
 		return
 	}
 
-	title := c.PostForm("title")
-	if title == "" {
-		title = file.Filename
+	titleInput := c.PostForm("title")
+	descriptionInput := c.PostForm("description")
+
+	finalTitle := titleInput
+	if finalTitle == "" {
+		finalTitle = file.Filename
 	}
 
-	filename := fmt.Sprintf("session_%d_%d%s", sessionID, time.Now().Unix(), ext)
+	filename := fmt.Sprintf("session_file_%d_%d%s", sessionID, time.Now().Unix(), ext)
 	path := "uploads/files/" + filename
+
+	os.MkdirAll("uploads/files", os.ModePerm)
 
 	if err := c.SaveUploadedFile(file, path); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
@@ -143,20 +144,18 @@ func UploadSessionFile(c *gin.Context) {
 	}
 
 	var maxOrder int
-	config.DB.Get(&maxOrder, `
-		SELECT COALESCE(MAX(order_index), 0) FROM session_files WHERE session_id = ?
-	`, sessionID)
-	newOrder := maxOrder + 1
+	config.DB.Get(&maxOrder, `SELECT COALESCE(MAX(order_index), 0) FROM session_files WHERE session_id = ?`, sessionID)
 
 	_, err = config.DB.Exec(`
-		INSERT INTO session_files (session_id, title, file_url, size_bytes, order_index, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO session_files (session_id, title, description, file_url, size_bytes, order_index, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`,
 		sessionID,
-		title,
+		finalTitle,
+		descriptionInput,
 		path,
 		file.Size,
-		newOrder,
+		maxOrder+1,
 		time.Now(),
 	)
 
@@ -171,121 +170,48 @@ func UploadSessionFile(c *gin.Context) {
 	})
 }
 
-// ================================
-// ORGANIZATION: GET MEDIA IN SESSION
-// ================================
+// ============================================================
+// ORGANIZATION VIEW: Melihat media milik sesi sendiri
+// ============================================================
 func GetSessionMedia(c *gin.Context) {
-
 	userID := c.GetInt64("user_id")
 	sessionIDStr := c.Param("sessionID")
 
 	var sessionID int64
-	_, err := fmt.Sscan(sessionIDStr, &sessionID)
-	if err != nil {
+	if _, err := fmt.Sscan(sessionIDStr, &sessionID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
 		return
 	}
 
-	// cek apakah sesi milik organisasi pemilik event
 	if !checkSessionOwnedByUser(sessionID, userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't own this session"})
 		return
 	}
 
-	// ambil video
+	// Ambil Video
 	var videos []models.SessionVideo
-	err = config.DB.Select(&videos, `
-    SELECT * FROM session_videos 
-    WHERE session_id = ?
-    ORDER BY order_index ASC
-`, sessionID)
-
+	err := config.DB.Select(&videos, `SELECT * FROM session_videos WHERE session_id = ? ORDER BY order_index ASC`, sessionID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get videos"})
-		return
+		videos = []models.SessionVideo{}
 	}
 
-	// ambil file materi
+	// Ambil File
 	var files []models.SessionFile
-	err = config.DB.Select(&files, `
-    SELECT * FROM session_files 
-    WHERE session_id = ?
-    ORDER BY order_index ASC
-`, sessionID)
-
+	err = config.DB.Select(&files, `SELECT * FROM session_files WHERE session_id = ? ORDER BY order_index ASC`, sessionID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get files"})
-		return
+		files = []models.SessionFile{}
 	}
 
-	// response
 	c.JSON(http.StatusOK, gin.H{
 		"videos": videos,
 		"files":  files,
 	})
 }
 
-//
-// ============================================================
-// 1. ORGANIZATION VIEW: Melihat media milik sesi sendiri
-// ============================================================
-//
-func GetOrganizationSessionMedia(c *gin.Context) {
-	userID := c.GetInt64("user_id")
-	sessionIDStr := c.Param("sessionID")
-
-	var sessionID int64
-	if _, err := fmt.Sscan(sessionIDStr, &sessionID); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid session ID"})
-		return
-	}
-
-	// cek apakah sesi ini dimiliki organisasi user
-	if !checkSessionOwnedByUser(sessionID, userID) {
-		c.JSON(403, gin.H{"error": "You don't own this session"})
-		return
-	}
-
-	// Query video
-	var videos []models.SessionVideo
-	err := config.DB.Select(&videos, `
-		SELECT * FROM session_videos 
-		WHERE session_id = ?
-		ORDER BY order_index ASC
-	`, sessionID)
-
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to get videos"})
-		return
-	}
-
-	// Query files
-	var files []models.SessionFile
-	err = config.DB.Select(&files, `
-		SELECT * FROM session_files 
-		WHERE session_id = ?
-		ORDER BY order_index ASC
-	`, sessionID)
-
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to get files"})
-		return
-	}
-
-	c.JSON(200, gin.H{
-		"session_id": sessionID,
-		"videos":     videos,
-		"files":      files,
-	})
-}
-
-//
 // =======================================================================
-// 2. USER VIEW: Mengakses media sesi jika sudah membeli sesi tersebut
+// 4. USER VIEW: Mengakses media sesi jika sudah membeli sesi tersebut
 // =======================================================================
-//
 func GetUserSessionMedia(c *gin.Context) {
-
 	userID := c.GetInt64("user_id")
 	sessionIDStr := c.Param("sessionID")
 
@@ -295,7 +221,7 @@ func GetUserSessionMedia(c *gin.Context) {
 		return
 	}
 
-	// VALIDASI 1: user sudah membeli sesi?
+	// 1. Cek Pembelian
 	var count int
 	err := config.DB.Get(&count, `
 		SELECT COUNT(*) FROM purchases 
@@ -307,43 +233,41 @@ func GetUserSessionMedia(c *gin.Context) {
 		return
 	}
 
-	// VALIDASI 2: sesi sudah publish?
+	// 2. Cek Status Publish Sesi
 	var status string
-	err = config.DB.Get(&status, `
-		SELECT publish_status FROM sessions WHERE id = ?
-	`, sessionID)
+	err = config.DB.Get(&status, `SELECT publish_status FROM sessions WHERE id = ?`, sessionID)
 
 	if err != nil || status != "PUBLISHED" {
 		c.JSON(403, gin.H{"error": "Session not accessible (not published)"})
 		return
 	}
 
-	// Ambil video
+	// 3. Ambil Video (FIX: Pakai COALESCE agar tidak error jika description NULL)
 	var videos []models.SessionVideo
 	err = config.DB.Select(&videos, `
-		SELECT id, session_id, title, video_url, order_index 
+		SELECT id, session_id, title, COALESCE(description, '') as description, video_url, size_bytes, order_index 
 		FROM session_videos 
 		WHERE session_id = ?
 		ORDER BY order_index ASC
 	`, sessionID)
 
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to load videos"})
-		return
+		fmt.Println("❌ Error Fetching Videos:", err) // Debug di terminal
+		videos = []models.SessionVideo{}
 	}
 
-	// Ambil file materi
+	// 4. Ambil File (FIX: Pakai COALESCE juga)
 	var files []models.SessionFile
 	err = config.DB.Select(&files, `
-		SELECT id, session_id, title, file_url, order_index 
+		SELECT id, session_id, title, COALESCE(description, '') as description, file_url, size_bytes, order_index 
 		FROM session_files 
 		WHERE session_id = ?
 		ORDER BY order_index ASC
 	`, sessionID)
 
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to load files"})
-		return
+		fmt.Println("❌ Error Fetching Files:", err) // Debug di terminal
+		files = []models.SessionFile{}
 	}
 
 	c.JSON(200, gin.H{
