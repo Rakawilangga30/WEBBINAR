@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"BACKEND/config"
+
+	"github.com/gin-gonic/gin"
 )
 
 // Helper cek kepemilikan (Sama seperti sebelumnya, tapi kita log errornya)
@@ -23,7 +24,7 @@ func checkEventOwnedByUserID(eventID int64, userID int64) bool {
 
 func PublishEvent(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	eventID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	eventID, _ := strconv.ParseInt(c.Param("eventID"), 10, 64)
 
 	if !checkEventOwnedByUserID(eventID, userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
@@ -40,7 +41,7 @@ func PublishEvent(c *gin.Context) {
 
 func UnpublishEvent(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	eventID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	eventID, _ := strconv.ParseInt(c.Param("eventID"), 10, 64)
 
 	if !checkEventOwnedByUserID(eventID, userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
@@ -62,7 +63,7 @@ type ScheduleRequest struct {
 
 func SchedulePublish(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	eventID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	eventID, _ := strconv.ParseInt(c.Param("eventID"), 10, 64)
 
 	if !checkEventOwnedByUserID(eventID, userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
@@ -78,7 +79,7 @@ func SchedulePublish(c *gin.Context) {
 	// 1. Coba format dari HTML datetime-local (contoh: 2025-12-19T18:00)
 	// Kita tambah ":00" detik agar sesuai format SQL standard jika perlu
 	layoutHTML := "2006-01-02T15:04"
-	layoutISO  := time.RFC3339
+	layoutISO := time.RFC3339
 
 	parsedTime, err := time.Parse(layoutHTML, req.PublishAt)
 	if err != nil {
@@ -99,7 +100,7 @@ func SchedulePublish(c *gin.Context) {
 		SET publish_status = 'SCHEDULED', publish_at = ? 
 		WHERE id = ?
 	`, sqlTimeStr, eventID)
-	
+
 	if err != nil {
 		fmt.Println("❌ DB Error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
@@ -107,8 +108,8 @@ func SchedulePublish(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Event scheduled!", 
-		"status": "SCHEDULED", 
+		"message":    "Event scheduled!",
+		"status":     "SCHEDULED",
 		"publish_at": req.PublishAt,
 	})
 }

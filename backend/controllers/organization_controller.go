@@ -3,6 +3,8 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -135,3 +137,130 @@ func CreateSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Session created!", "session_id": sessionID})
 }
 
+// =======================================
+// UPDATE EVENT (Title, Desc, Category)
+// =======================================
+func UpdateEvent(c *gin.Context) {
+	// 1. Ambil ID dari param dan user_id dari token
+	eventIDStr := c.Param("eventID") // perhatikan nama param di route nanti
+	userID := c.GetInt64("user_id")
+
+	var eventID int64
+	if _, err := fmt.Sscan(eventIDStr, &eventID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+
+	// 2. Cek Kepemilikan Event
+	// Kita pastikan event ini milik organization yang dimiliki user ini
+	var count int
+	err := config.DB.Get(&count, `
+		SELECT COUNT(*) 
+		FROM events e
+		JOIN organizations o ON e.organization_id = o.id
+		WHERE e.id = ? AND o.owner_user_id = ?
+	`, eventID, userID)
+
+	if err != nil || count == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to edit this event"})
+		return
+	}
+
+	// 3. Tangkap Input JSON
+	var input struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Category    string `json:"category"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 4. Lakukan Update
+	// Kita hanya update field yang relevan. Publish status tidak diubah disini.
+	_, err = config.DB.Exec(`
+		UPDATE events 
+		SET title = ?, description = ?, category = ?, updated_at = ?
+		WHERE id = ?
+	`, input.Title, input.Description, input.Category, time.Now(), eventID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update event"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Event updated successfully",
+		"data":    input,
+	})
+}
+
+// =======================================
+// UPLOAD EVENT THUMBNAIL
+// =======================================
+func UploadEventThumbnail(c *gin.Context) {
+	// 1. Ambil ID Event
+	eventIDStr := c.Param("eventID")
+	userID := c.GetInt64("user_id")
+
+	var eventID int64
+	if _, err := fmt.Sscan(eventIDStr, &eventID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+
+	// 2. Cek Kepemilikan (PENTING)
+	var count int
+	err := config.DB.Get(&count, `
+		SELECT COUNT(*) FROM events e
+		JOIN organizations o ON e.organization_id = o.id
+		WHERE e.id = ? AND o.owner_user_id = ?
+	`, eventID, userID)
+
+	if err != nil || count == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to edit this event"})
+		return
+	}
+
+	// 3. Ambil File dari Form
+	file, err := c.FormFile("thumbnail")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thumbnail file is required"})
+		return
+	}
+
+	// Validasi Ekstensi (Hanya Gambar)
+	ext := filepath.Ext(file.Filename)
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only jpg, jpeg, and png allowed"})
+		return
+	}
+
+	// 4. Simpan File
+	// Format nama: event_thumb_{id}_{timestamp}.jpg
+	filename := fmt.Sprintf("event_thumb_%d_%d%s", eventID, time.Now().Unix(), ext)
+	savePath := "uploads/events/" + filename
+
+	// Pastikan folder ada
+	os.MkdirAll("uploads/events", os.ModePerm)
+
+	if err := c.SaveUploadedFile(file, savePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save thumbnail image"})
+		return
+	}
+
+	// 5. Update Database
+	// Kita simpan path-nya saja
+	_, err = config.DB.Exec("UPDATE events SET thumbnail_url = ? WHERE id = ?", savePath, eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update database"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Thumbnail updated successfully",
+		"thumbnail_url": savePath,
+	})
+}

@@ -83,13 +83,15 @@ func RegisterRoutes(r *gin.Engine) {
 
 		// Event Management
 		org.POST("/events", controllers.CreateEvent)
+		org.PUT("/events/:eventID", controllers.UpdateEvent)
+		org.POST("/events/:eventID/thumbnail", controllers.UploadEventThumbnail)
 		org.GET("/events", controllers.ListMyEvents)
 		org.GET("/events/:eventID", controllers.GetMyEventDetailForManage) // Detail khusus owner
 
 		// Event Publishing
-		org.PUT("/events/:id/publish", controllers.PublishEvent)
-		org.PUT("/events/:id/unpublish", controllers.UnpublishEvent)
-		org.PUT("/events/:id/schedule", controllers.SchedulePublish)
+		org.PUT("/events/:eventID/publish", controllers.PublishEvent)
+		org.PUT("/events/:eventID/unpublish", controllers.UnpublishEvent)
+		org.PUT("/events/:eventID/schedule", controllers.SchedulePublish)
 
 		// Session Management
 		org.POST("/events/:eventID/sessions", controllers.CreateSession)

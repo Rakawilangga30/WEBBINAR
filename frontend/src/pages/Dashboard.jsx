@@ -74,7 +74,11 @@ export default function Dashboard() {
                                 {/* Placeholder Gambar */}
                                 <div style={{ height: "180px", background: "#cbd5e0", display: "flex", alignItems: "center", justifyContent: "center", color: "#718096" }}>
                                     {evt.thumbnail_url ? (
-                                        <img src={evt.thumbnail_url} alt={evt.title} style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                                        <img
+                                            src={(evt.thumbnail_url || "").startsWith("http") ? evt.thumbnail_url : `http://localhost:8080/${(evt.thumbnail_url || "").replace(/^\/+/, "")}`}
+                                            alt={evt.title}
+                                            style={{width:"100%", height:"100%", objectFit:"cover"}}
+                                        />
                                     ) : (
                                         <span>No Image</span>
                                     )}
@@ -121,7 +125,11 @@ export default function Dashboard() {
                                 {/* Placeholder Gambar */}
                                 <div style={{ height: "180px", background: "#cbd5e0", display: "flex", alignItems: "center", justifyContent: "center", color: "#718096" }}>
                                     {evt.thumbnail_url ? (
-                                        <img src={evt.thumbnail_url} alt={evt.title} style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                                        <img
+                                            src={(evt.thumbnail_url || "").startsWith("http") ? evt.thumbnail_url : `http://localhost:8080/${(evt.thumbnail_url || "").replace(/^\/+/, "")}`}
+                                            alt={evt.title}
+                                            style={{width:"100%", height:"100%", objectFit:"cover"}}
+                                        />
                                     ) : (
                                         <span>No Image</span>
                                     )}
@@ -138,7 +146,7 @@ export default function Dashboard() {
                                         {evt.description.substring(0, 100)}...
                                     </p>
                                     <Link to={`/event/${evt.id}`} style={{ 
-                                        display: "block", textAlign: "center", background: "#3182ce", color: "white", 
+                                        display: "block", textAlign: "center", background: "#3182ce", color: "black", 
                                         padding: "10px", borderRadius: "6px", textDecoration: "none", fontWeight: "bold"
                                     }}>
                                         Mulai Belajar

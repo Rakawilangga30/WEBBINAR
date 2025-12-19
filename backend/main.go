@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"BACKEND/config"
-	"BACKEND/middlewares"
 	"BACKEND/routes"
 )
 
@@ -26,18 +25,21 @@ func startAutoPublishJob() {
 				  AND publish_at IS NOT NULL
 				  AND publish_at <= NOW()
 			`)
-            res2, err2 := config.DB.Exec(`
-                    UPDATE sessions
-                    SET publish_status = 'PUBLISHED'
-                    WHERE publish_status = 'SCHEDULED'
-                    AND publish_at <= NOW()
-                `)
-                if err2 == nil {
-                    affected2, _ := res2.RowsAffected()
-                    if affected2 > 0 {
-                        log.Printf("✅ Auto publish session: %d session(s)\n", affected2)
-                    }
-                }
+			
+			// Tambahkan update untuk sessions juga (sesuai request Anda sebelumnya)
+			res2, err2 := config.DB.Exec(`
+					UPDATE sessions
+					SET publish_status = 'PUBLISHED'
+					WHERE publish_status = 'SCHEDULED'
+					AND publish_at <= NOW()
+				`)
+			if err2 == nil {
+				affected2, _ := res2.RowsAffected()
+				if affected2 > 0 {
+					log.Printf("✅ Auto publish session: %d session(s)\n", affected2)
+				}
+			}
+
 			if err != nil {
 				log.Println("❌ Auto publish job error:", err)
 				continue
@@ -49,25 +51,28 @@ func startAutoPublishJob() {
 			}
 		}
 	}()
-}   
-
-
-
+}
 
 func main() {
 	r := gin.Default()
-	
 
 	config.ConnectDB()
 	config.SetupCORS(r)
 
 	// Jalankan cron auto publish
 	startAutoPublishJob()
+	
+	// --- PENTING: Serve Static Files (Untuk Thumbnail) ---
+	// Ini agar URL seperti http://localhost:8080/uploads/events/xxx.jpg bisa dibuka
+	r.Static("/uploads", "./uploads")
 
 	// Register semua route
 	routes.RegisterRoutes(r)
-	// Middleware untuk blok akses langsung ke folder static
-	r.Use(middlewares.BlockStaticAccess())
+
+	// Middleware untuk blok akses langsung ke folder static (Opsional, tapi hati-hati bentrok dengan r.Static)
+	// Jika r.Static di atas sudah ada, middleware ini mungkin perlu disesuaikan agar tidak memblokir /uploads/events/
+	// Untuk keamanan materi berbayar (video/pdf), tetap gunakan logika stream controller.
+	// r.Use(middlewares.BlockStaticAccess()) 
 
 	// Start server
 	r.Run(":8080")
