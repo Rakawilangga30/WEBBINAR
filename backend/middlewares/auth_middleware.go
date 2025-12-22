@@ -1,109 +1,70 @@
 package middlewares
 
 import (
-	"fmt"
 	"net/http"
-	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-
 	"BACKEND/helpers"
 )
 
+// AuthRequired: Cek token valid & simpan data ke Context
 func AuthRequired() gin.HandlerFunc {
-	jwtSecret := helpers.GetJWTSecret()
-
-	if os.Getenv("JWT_SECRET") == "" {
-		fmt.Println("WARNING: JWT_SECRET not set in environment. Using development default secret.")
-	}
-
 	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
-
-		if tokenString == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
-			c.Abort()
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			return
 		}
 
-		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
-			tokenString = tokenString[7:]
-		}
-
-		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-			}
-			return jwtSecret, nil
-		})
-
-		if err != nil || !token.Valid {
-			details := ""
-			if err != nil {
-				details = err.Error()
-			}
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token", "details": details})
-			c.Abort()
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims, err := helpers.ValidateToken(tokenString)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			return
 		}
 
-		// Ambil claims dari token
-		claims := token.Claims.(jwt.MapClaims)
-
-		userID := int64(claims["user_id"].(float64))
-		role := claims["role"].(string)
-
-		// Simpan dalam context untuk controller
-		c.Set("user_id", userID)
-		c.Set("role", role)
+		// Simpan UserID dan Roles ke context agar bisa dipakai di controller
+		c.Set("user_id", claims.UserID)
+		c.Set("roles", claims.Roles) // <--- Simpan array roles
 
 		c.Next()
 	}
 }
+
+// RoleOnly: Cek apakah user punya role tertentu (misal: ADMIN)
 func RoleOnly(allowedRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role := c.GetString("role")
+		rolesInterface, exists := c.Get("roles")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+			return
+		}
 
-		if role != allowedRole {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Access restricted to role: " + allowedRole,
-			})
-			c.Abort()
+		// Cek apakah allowedRole ada di dalam list roles user
+		userRoles := rolesInterface.([]string)
+		hasRole := false
+		for _, r := range userRoles {
+			if r == allowedRole {
+				hasRole = true
+				break
+			}
+		}
+
+		if !hasRole {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "You don't have permission"})
 			return
 		}
 
 		c.Next()
 	}
 }
-func AdminOnly() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role := c.GetString("role")
 
-		if role != "ADMIN" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Admin access only",
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
+// Helper khusus untuk Organization & Admin (Shortcut)
 func OrganizationOnly() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role := c.GetString("role")
+	return RoleOnly("ORGANIZATION")
+}
 
-		if role != "ORGANIZATION" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Organization access only",
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
+func AdminOnly() gin.HandlerFunc {
+	return RoleOnly("ADMIN")
 }

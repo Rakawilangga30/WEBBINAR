@@ -1,50 +1,60 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
-// IMPORT KOMPONEN UI
+// COMPONENTS
 import Navbar from "./components/Navbar";
+import DashboardLayout from "./components/DashboardLayout"; 
 
-// IMPORT HALAMAN UTAMA
-import Dashboard from "./pages/Dashboard";         
-import EventDetail from "./pages/EventDetail";     
-
-// IMPORT HALAMAN AUTH
+// PUBLIC PAGES (Bisa diakses siapa saja)
+import LandingPage from "./pages/Dashboard"; // Asumsi "Dashboard.jsx" yang lama adalah Landing Page kamu
+import EventDetail from "./pages/EventDetail";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-// IMPORT HALAMAN ORGANISASI
-import MyOrganization from "./pages/org/MyOrganization"; 
-import ManageEvent from "./pages/org/ManageEvent"; 
-
-// IMPORT HALAMAN ADMIN
-import AdminDashboard from "./pages/admin/AdminDashboard"; 
+// PROTECTED PAGES (Harus Login)
+import DashboardHome from "./pages/DashboardHome"; // Halaman "Halo User" (Buat file ini jika belum ada)
+import UserProfile from "./pages/user/UserProfile";
+import UserList from "./pages/admin/UserList";
+import AdminOrgApprovals from "./pages/admin/AdminOrgApprovals";
+import MyOrganization from "./pages/org/MyOrganization";
+import ManageEvent from "./pages/org/ManageEvent";
 
 function App() {
   return (
     <Router>
-      <Navbar /> 
-      
-      <div style={{ marginTop: "20px" }}> 
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/event/:id" element={<EventDetail />} />
+      <Routes>
+        {/* === AREA PUBLIK (Bebas Masuk) === */}
+        {/* Navbar dipasang manual di sini agar muncul di halaman depan */}
+        <Route path="/" element={<><Navbar /><LandingPage /></>} />
+        <Route path="/event/:id" element={<><Navbar /><EventDetail /></>} />
+        
+        {/* Halaman Login/Register (Tanpa Navbar) */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-          {/* Auth Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
 
-          {/* Organization Routes */}
-          <Route path="/org" element={<MyOrganization />} /> 
-          <Route path="/org/event/:eventID/manage" element={<ManageEvent />} />
+        {/* === AREA PRIVATE (Harus Login) === */}
+        {/* DashboardLayout akan mengecek token. Kalau tidak ada, ditendang ke Login */}
+        <Route path="/dashboard" element={<DashboardLayout />}>
+          
+          {/* Halaman Default Dashboard */}
+          <Route index element={<DashboardHome />} />
+
+          {/* User Routes */}
+          <Route path="profile" element={<UserProfile />} />
 
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="admin/users" element={<UserList />} />
+          <Route path="admin/approvals" element={<AdminOrgApprovals />} />
 
-          {/* Fallback (404) */}
-          <Route path="*" element={<div style={{padding:40, textAlign:"center"}}><h2>404 Not Found</h2></div>} />
-        </Routes>
-      </div>
+          {/* Organization Routes */}
+          <Route path="org" element={<MyOrganization />} />
+          <Route path="org/event/:eventID/manage" element={<ManageEvent />} />
+
+        </Route>
+
+        {/* 404 Not Found */}
+        <Route path="*" element={<div style={{textAlign:"center", padding:50}}><h2>404 Not Found</h2></div>} />
+      </Routes>
     </Router>
   );
 }

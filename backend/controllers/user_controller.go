@@ -70,22 +70,59 @@ func UpdateMe(c *gin.Context) {
 
 
 // ================================
-// ADMIN: GET ALL USERS
+// ADMIN: GET ALL USERS (WITH ROLES)
 // ================================
 func GetAllUsers(c *gin.Context) {
-	var users []models.User
+    // Kita buat struct custom untuk response agar ada field Roles
+    type UserWithRole struct {
+        models.User
+        Roles []string `json:"roles"`
+    }
 
-	err := config.DB.Select(&users, `
-		SELECT id, name, email, phone, profile_img, bio 
-		FROM users ORDER BY id DESC
-	`)
+    // 1. Ambil semua user
+    var users []models.User
+    err := config.DB.Select(&users, `
+        SELECT id, name, email, phone, profile_img, bio 
+        FROM users ORDER BY id DESC
+    `)
 
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
-		return
-	}
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"users": users})
+    // 2. Ambil semua roles mapping (agar efisien, sekali query)
+    type UserRoleMap struct {
+        UserID   int64  `db:"user_id"`
+        RoleName string `db:"role_name"`
+    }
+    var roleMaps []UserRoleMap
+    config.DB.Select(&roleMaps, `
+        SELECT ur.user_id, r.name as role_name
+        FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.id
+    `)
+
+    // 3. Gabungkan data User + Role
+    var result []UserWithRole
+    
+    for _, u := range users {
+        // Cari role untuk user ini
+        var myRoles []string
+        for _, rm := range roleMaps {
+            if rm.UserID == u.ID {
+                myRoles = append(myRoles, rm.RoleName)
+            }
+        }
+        
+        // Append ke hasil akhir
+        result = append(result, UserWithRole{
+            User:  u,
+            Roles: myRoles,
+        })
+    }
+
+    c.JSON(http.StatusOK, gin.H{"users": result})
 }
 
 

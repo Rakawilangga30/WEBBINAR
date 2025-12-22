@@ -1,62 +1,47 @@
 import { Link, useNavigate } from "react-router-dom";
 
 export default function Navbar() {
-    const navigate = useNavigate();
-    // Cek apakah user sudah login (token ada di localStorage)
-    const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+  // Cek apakah ada user di localstorage
+  const user = JSON.parse(localStorage.getItem("user"));
 
-    const handleLogout = () => {
-        const confirm = window.confirm("Yakin ingin logout?");
-        if (confirm) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user_id");
-            alert("Logout berhasil!");
-            navigate("/login");
-            window.location.reload(); // Refresh agar navbar update
-        }
-    };
+  const handleLogout = () => {
+    localStorage.clear(); // Hapus semua data
+    navigate("/login");
+  };
 
-    return (
-        <nav style={{ 
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "15px 30px", background: "#2d3748", color: "white", boxShadow: "0 2px 5px rgba(0,0,0,0.1)"
-        }}>
-            {/* LOGO / BRAND */}
-            <div style={{ fontSize: "1.5em", fontWeight: "bold" }}>
-                <Link to="/" style={{ color: "white", textDecoration: "none" }}>🚀 LearningApp</Link>
-            </div>
+  return (
+    <nav style={{ padding: "15px 30px", background: "#1a202c", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <Link to="/" style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white", textDecoration: "none" }}>
+        🚀 Proyek3
+      </Link>
 
-            {/* MENU TENGAH */}
-            <div style={{ display: "flex", gap: "20px" }}>
-                <Link to="/" style={linkStyle}>🏠 Home</Link>
-                
-                {/* Menu Creator hanya muncul jika login */}
-                {token && (
-                    <Link to="/org" style={linkStyle}>🏢 Creator Dashboard</Link>
-                )}
-            </div>
-
-            {/* TOMBOL KANAN (LOGIN / LOGOUT) */}
-            <div>
-                {token ? (
-                    <button 
-                        onClick={handleLogout}
-                        style={{ 
-                            background: "#e53e3e", color: "white", border: "none", 
-                            padding: "8px 15px", borderRadius: "5px", cursor: "pointer", fontWeight: "bold"
-                        }}
-                    >
-                        Logout
-                    </button>
-                ) : (
-                    <div style={{ display: "flex", gap: "10px" }}>
-                        <Link to="/login" style={{ ...buttonLinkStyle, background: "transparent", border: "1px solid white" }}>Login</Link>
-                        <Link to="/register" style={{ ...buttonLinkStyle, background: "#3182ce" }}>Register</Link>
-                    </div>
-                )}
-            </div>
-        </nav>
-    );
+      <div style={{ display: "flex", gap: "15px" }}>
+        <Link to="/" style={{ color: "white", textDecoration: "none" }}>Home</Link>
+        
+        {/* LOGIC TOMBOL */}
+        {user ? (
+          // Jika SUDAH Login
+          <>
+            <Link to="/dashboard" style={{ color: "#63b3ed", fontWeight: "bold", textDecoration: "none" }}>
+              Dashboard
+            </Link>
+            <button onClick={handleLogout} style={{ background: "red", color: "white", border: "none", borderRadius: "5px", padding: "5px 10px", cursor: "pointer" }}>
+              Logout
+            </button>
+          </>
+        ) : (
+          // Jika BELUM Login
+          <>
+            <Link to="/login" style={{ color: "white", textDecoration: "none" }}>Login</Link>
+            <Link to="/register" style={{ background: "#3182ce", padding: "8px 15px", borderRadius: "5px", color: "white", textDecoration: "none" }}>
+              Daftar
+            </Link>
+          </>
+        )}
+      </div>
+    </nav>
+  );
 }
 
 // Style Helper biar rapi

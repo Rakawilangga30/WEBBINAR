@@ -19,31 +19,34 @@ func RegisterRoutes(r *gin.Engine) {
 		api.POST("/login", controllers.Login)
 		api.GET("/events", controllers.ListPublicEvents)
 		api.GET("/events/:eventID", controllers.GetEventDetail)
+		
+		// Note: Pindahkan route public session ke sini agar rapi
 		api.GET("/user/sessions/video/:filename", controllers.StreamSessionVideo)
 		api.GET("/user/sessions/file/:filename", controllers.StreamSessionFile)
 	}
 
 	// ==========================================
-	// 2. USER ROUTES
+	// 2. USER ROUTES (PROTECTED)
 	// ==========================================
-	user := api.Group("/user")
-	user.Use(middlewares.AuthRequired()) 
+	// Gunakan variabel nama berbeda agar tidak konflik/membingungkan
+	userGroup := api.Group("/user")
+	userGroup.Use(middlewares.AuthRequired()) 
 	{
-		user.GET("/profile", controllers.GetMe)
-		user.PUT("/profile", controllers.UpdateMe)
-		user.POST("/profile/upload-image", controllers.UploadProfileImage)
-		user.PUT("/profile/change-password", controllers.ChangePassword)
+		userGroup.GET("/profile", controllers.GetMe)
+		userGroup.PUT("/profile", controllers.UpdateMe)
+		userGroup.POST("/profile/upload-image", controllers.UploadProfileImage) // Pastikan path ini sesuai Frontend
+		userGroup.PUT("/profile/change-password", controllers.ChangePassword)
 
-		user.POST("/buy/:sessionID", controllers.BuySession)
-		user.GET("/purchases", controllers.MyPurchases)
-		user.GET("/sessions/:sessionID/check-purchase", controllers.CheckSessionPurchase)
+		userGroup.POST("/buy/:sessionID", controllers.BuySession)
+		userGroup.GET("/purchases", controllers.MyPurchases)
+		userGroup.GET("/sessions/:sessionID/check-purchase", controllers.CheckSessionPurchase)
 
-		user.GET("/sessions/:sessionID/media",
+		userGroup.GET("/sessions/:sessionID/media",
 			middlewares.SessionAccessRequired(),
 			controllers.GetUserSessionMedia,
 		)
-		user.GET("/sessions/signed-video/:filename", controllers.GetSignedVideoURL)
-		user.GET("/sessions/signed-file/:filename", controllers.GetSignedFileURL)
+		userGroup.GET("/sessions/signed-video/:filename", controllers.GetSignedVideoURL)
+		userGroup.GET("/sessions/signed-file/:filename", controllers.GetSignedFileURL)
 	}
 
 	// ==========================================
@@ -66,7 +69,7 @@ func RegisterRoutes(r *gin.Engine) {
 
 		org.POST("/events", controllers.CreateEvent)
 		org.PUT("/events/:eventID", controllers.UpdateEvent)
-		org.DELETE("/events/:eventID", controllers.DeleteEvent) // Delete Event
+		org.DELETE("/events/:eventID", controllers.DeleteEvent)
 
 		org.POST("/events/:eventID/thumbnail", controllers.UploadEventThumbnail)
 		org.GET("/events", controllers.ListMyEvents)
@@ -81,16 +84,12 @@ func RegisterRoutes(r *gin.Engine) {
 		org.PUT("/sessions/:sessionID/unpublish", controllers.UnpublishSession)
 		org.PUT("/sessions/:sessionID/schedule", controllers.ScheduleSessionPublish)
 		org.PUT("/sessions/:sessionID", controllers.UpdateSession)
-		org.DELETE("/sessions/:sessionID", controllers.DeleteSession) // Delete Session
+		org.DELETE("/sessions/:sessionID", controllers.DeleteSession)
 
-		// --- MATERI ROUTES ---
 		org.POST("/sessions/:sessionID/videos", controllers.UploadSessionVideo)
 		org.POST("/sessions/:sessionID/files", controllers.UploadSessionFile)
-		
 		org.PUT("/sessions/:sessionID/videos/:mediaID", controllers.UpdateSessionVideo)
 		org.PUT("/sessions/:sessionID/files/:mediaID", controllers.UpdateSessionFile)
-		
-		// DELETE MATERI (BARU)
 		org.DELETE("/sessions/:sessionID/videos/:mediaID", controllers.DeleteSessionVideo)
 		org.DELETE("/sessions/:sessionID/files/:mediaID", controllers.DeleteSessionFile)
 

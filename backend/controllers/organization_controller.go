@@ -134,3 +134,4 @@ func CreateSession(c *gin.Context) {
 	sessionID, _ := res.LastInsertId()
 	c.JSON(http.StatusOK, gin.H{"message": "Session created!", "session_id": sessionID})
 }
+

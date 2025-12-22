@@ -63,16 +63,25 @@ export default function EventDetail() {
     // Copy ulang fungsi-fungsi tersebut dari kode sebelumnya jika perlu, 
     // atau biarkan kode di bawah ini jika Anda mau yang bersih:
 
-    const handleBuy = async (sessionID) => {
-        if (!confirm("Yakin mau beli sesi ini?")) return;
-        try {
-            await api.post(`/user/buy/${sessionID}`);
-            alert("Pembelian Berhasil!");
-            fetchEventDetail(); 
-        } catch (error) {
-            alert("Gagal membeli: " + (error.response?.data?.error || "Error"));
-        }
-    };
+    const handleBuy = async () => {
+    const token = localStorage.getItem("token");
+
+    // 1. Cek Lokal: Kalau tidak ada token, jangan panggil API
+    if (!token) {
+        alert("Anda harus login terlebih dahulu untuk membeli tiket.");
+        navigate("/login"); // Pastikan sudah import useNavigate
+        return;
+    }
+
+    // 2. Panggil API (Token akan otomatis dibawa oleh api.js)
+    try {
+        await api.post(`/user/buy/${id}`); // Sesuaikan endpoint
+        alert("Pembelian berhasil!");
+        // Redirect ke halaman sukses/pembayaran
+    } catch (error) {
+        alert("Gagal membeli: " + (error.response?.data?.error || "Terjadi kesalahan"));
+    }
+};
 
     const handleOpenMaterial = async (sessionID) => {
         try {
