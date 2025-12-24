@@ -105,114 +105,137 @@ export default function MyCourses() {
                     </Link>
                 </div>
             ) : (
-                <div style={{ display: "grid", gap: "20px" }}>
+                <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                    gap: "24px"
+                }}>
                     {courses.map(eventGroup => (
                         <div key={eventGroup.event_id} style={{
                             background: "white",
                             borderRadius: "12px",
                             overflow: "hidden",
-                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
-                        }}>
-                            {/* Event Header */}
+                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                            cursor: "pointer"
+                        }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.transform = "translateY(-4px)";
+                                e.currentTarget.style.boxShadow = "0 12px 25px -5px rgba(0, 0, 0, 0.15)";
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
+                            }}
+                        >
+                            {/* Thumbnail */}
                             <div style={{
-                                display: "flex",
-                                gap: "16px",
-                                alignItems: "center",
-                                padding: "20px",
-                                borderBottom: "1px solid #f1f5f9",
-                                background: "#fafafa"
+                                width: "100%",
+                                height: "160px",
+                                background: "linear-gradient(135deg, #eff6ff, #dbeafe)",
+                                overflow: "hidden",
+                                position: "relative"
                             }}>
+                                {eventGroup.thumbnail ? (
+                                    <img
+                                        src={`http://localhost:8080/${eventGroup.thumbnail}`}
+                                        alt={eventGroup.event_title}
+                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                    />
+                                ) : (
+                                    <div style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        height: "100%",
+                                        fontSize: "3rem"
+                                    }}>
+                                        🎓
+                                    </div>
+                                )}
+                                {/* Session count badge */}
                                 <div style={{
-                                    width: "100px",
-                                    height: "70px",
-                                    background: "linear-gradient(135deg, #eff6ff, #dbeafe)",
-                                    borderRadius: "8px",
-                                    overflow: "hidden",
-                                    flexShrink: 0
+                                    position: "absolute",
+                                    top: "12px",
+                                    right: "12px",
+                                    background: "rgba(0,0,0,0.7)",
+                                    color: "white",
+                                    padding: "4px 10px",
+                                    borderRadius: "20px",
+                                    fontSize: "0.75rem",
+                                    fontWeight: "600"
                                 }}>
-                                    {eventGroup.thumbnail ? (
-                                        <img
-                                            src={`http://localhost:8080/${eventGroup.thumbnail}`}
-                                            alt={eventGroup.event_title}
-                                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                        />
-                                    ) : (
-                                        <div style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            height: "100%",
-                                            fontSize: "1.5rem"
+                                    {eventGroup.sessions.length} Sesi
+                                </div>
+                            </div>
+
+                            {/* Card Content */}
+                            <div style={{ padding: "16px" }}>
+                                <h3 style={{
+                                    margin: "0 0 12px 0",
+                                    color: "#1e293b",
+                                    fontSize: "1rem",
+                                    fontWeight: "600",
+                                    lineHeight: 1.4,
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden"
+                                }}>
+                                    {eventGroup.event_title}
+                                </h3>
+
+                                {/* Sessions Info */}
+                                <div style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: "6px",
+                                    marginBottom: "16px"
+                                }}>
+                                    {eventGroup.sessions.slice(0, 3).map(s => (
+                                        <span key={s.id} style={{
+                                            background: "#f1f5f9",
+                                            color: "#475569",
+                                            padding: "4px 8px",
+                                            borderRadius: "4px",
+                                            fontSize: "0.7rem"
                                         }}>
-                                            🎓
-                                        </div>
+                                            {s.title.length > 20 ? s.title.substring(0, 20) + "..." : s.title}
+                                        </span>
+                                    ))}
+                                    {eventGroup.sessions.length > 3 && (
+                                        <span style={{
+                                            background: "#dbeafe",
+                                            color: "#3b82f6",
+                                            padding: "4px 8px",
+                                            borderRadius: "4px",
+                                            fontSize: "0.7rem",
+                                            fontWeight: "500"
+                                        }}>
+                                            +{eventGroup.sessions.length - 3} lainnya
+                                        </span>
                                     )}
                                 </div>
-                                <div style={{ flex: 1 }}>
-                                    <h3 style={{ margin: "0 0 4px 0", color: "#1e293b", fontSize: "1.1rem" }}>
-                                        {eventGroup.event_title}
-                                    </h3>
-                                    <span style={{
-                                        background: "#dbeafe",
-                                        color: "#1d4ed8",
-                                        padding: "4px 10px",
-                                        borderRadius: "6px",
-                                        fontSize: "0.75rem",
-                                        fontWeight: "600"
-                                    }}>
-                                        {eventGroup.sessions.length} sesi dibeli
-                                    </span>
-                                </div>
+
+                                {/* Action Button */}
                                 <Link
                                     to={`/event/${eventGroup.event_id}`}
                                     style={{
-                                        padding: "10px 16px",
+                                        display: "block",
+                                        width: "100%",
+                                        padding: "12px",
                                         background: "linear-gradient(135deg, #3b82f6, #2563eb)",
                                         color: "white",
                                         textDecoration: "none",
                                         borderRadius: "8px",
                                         fontWeight: "600",
-                                        fontSize: "0.85rem"
+                                        fontSize: "0.9rem",
+                                        textAlign: "center",
+                                        boxSizing: "border-box"
                                     }}
                                 >
-                                    Lihat Event
+                                    ▶️ Lanjut Belajar
                                 </Link>
-                            </div>
-
-                            {/* Sessions List */}
-                            <div style={{ padding: "16px 20px" }}>
-                                {eventGroup.sessions.map((s, idx) => (
-                                    <div key={s.id} style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        padding: "12px 0",
-                                        borderBottom: idx < eventGroup.sessions.length - 1 ? "1px solid #f1f5f9" : "none"
-                                    }}>
-                                        <div>
-                                            <div style={{ fontWeight: "500", color: "#1e293b", fontSize: "0.9rem" }}>
-                                                {s.title}
-                                            </div>
-                                            <div style={{ color: "#64748b", fontSize: "0.8rem" }}>
-                                                Dibayar: Rp {s.price?.toLocaleString?.() ?? s.price}
-                                            </div>
-                                        </div>
-                                        <Link
-                                            to={`/event/${eventGroup.event_id}`}
-                                            style={{
-                                                padding: "8px 14px",
-                                                background: "#eff6ff",
-                                                color: "#3b82f6",
-                                                textDecoration: "none",
-                                                borderRadius: "6px",
-                                                fontWeight: "500",
-                                                fontSize: "0.8rem"
-                                            }}
-                                        >
-                                            ▶️ Lanjut Belajar
-                                        </Link>
-                                    </div>
-                                ))}
                             </div>
                         </div>
                     ))}

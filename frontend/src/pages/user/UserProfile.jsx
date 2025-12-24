@@ -506,43 +506,76 @@ export default function UserProfile() {
                                 </a>
                             </div>
 
-                            <div style={{ display: "grid", gap: "16px" }}>
-                                <div>
-                                    <label style={labelStyle}>Website</label>
-                                    <input
-                                        type="text"
-                                        name="website"
-                                        value={orgProfile.website || ""}
-                                        onChange={e => setOrgProfile({ ...orgProfile, website: e.target.value })}
-                                        style={inputStyle}
-                                        placeholder="https://example.com"
-                                    />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Social Media</label>
-                                    <input
-                                        type="text"
-                                        name="social_link"
-                                        value={orgProfile.social_link || ""}
-                                        onChange={e => setOrgProfile({ ...orgProfile, social_link: e.target.value })}
-                                        style={inputStyle}
-                                        placeholder="Link atau username social media"
-                                    />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Alamat</label>
-                                    <textarea
-                                        name="address"
-                                        value={orgProfile.address || ""}
-                                        onChange={e => setOrgProfile({ ...orgProfile, address: e.target.value })}
-                                        rows={2}
-                                        style={{
-                                            ...inputStyle,
-                                            resize: "vertical"
-                                        }}
-                                        placeholder="Alamat organisasi"
-                                    />
-                                </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                {orgProfile.website && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                        <span style={{ color: "#64748b", fontSize: "0.9rem", minWidth: "100px" }}>🌐 Website:</span>
+                                        <a
+                                            href={orgProfile.website}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: "#3b82f6", fontSize: "0.9rem", flex: 1, wordBreak: "break-all" }}
+                                        >
+                                            {orgProfile.website}
+                                        </a>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(orgProfile.website);
+                                                alert("Link website berhasil disalin!");
+                                            }}
+                                            style={{
+                                                padding: "6px 12px",
+                                                background: "#e0f2fe",
+                                                color: "#0284c7",
+                                                border: "1px solid #bae6fd",
+                                                borderRadius: "6px",
+                                                cursor: "pointer",
+                                                fontSize: "0.8rem",
+                                                fontWeight: "500"
+                                            }}
+                                        >
+                                            📋 Copy
+                                        </button>
+                                    </div>
+                                )}
+                                {orgProfile.social_link && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                        <span style={{ color: "#64748b", fontSize: "0.9rem", minWidth: "100px" }}>📱 Social:</span>
+                                        <a
+                                            href={orgProfile.social_link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: "#3b82f6", fontSize: "0.9rem", flex: 1, wordBreak: "break-all" }}
+                                        >
+                                            {orgProfile.social_link}
+                                        </a>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(orgProfile.social_link);
+                                                alert("Link social media berhasil disalin!");
+                                            }}
+                                            style={{
+                                                padding: "6px 12px",
+                                                background: "#e0f2fe",
+                                                color: "#0284c7",
+                                                border: "1px solid #bae6fd",
+                                                borderRadius: "6px",
+                                                cursor: "pointer",
+                                                fontSize: "0.8rem",
+                                                fontWeight: "500"
+                                            }}
+                                        >
+                                            📋 Copy
+                                        </button>
+                                    </div>
+                                )}
+                                {!orgProfile.website && !orgProfile.social_link && (
+                                    <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem", fontStyle: "italic" }}>
+                                        Belum ada website atau social link. Edit di halaman Kelola Organisasi.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}

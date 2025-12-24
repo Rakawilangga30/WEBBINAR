@@ -66,7 +66,9 @@ func RegisterRoutes(r *gin.Engine) {
 	{
 		org.GET("/profile", controllers.GetOrganizationProfile)
 		org.PUT("/profile", controllers.UpdateOrganizationProfile)
+		org.POST("/profile/logo", controllers.UploadOrganizationLogo)
 		org.GET("/report", controllers.GetOrganizationReport)
+		org.GET("/events/:eventID/buyers", controllers.GetEventBuyers)
 
 		org.POST("/events", controllers.CreateEvent)
 		org.PUT("/events/:eventID", controllers.UpdateEvent)
@@ -108,6 +110,8 @@ func RegisterRoutes(r *gin.Engine) {
 		admin.POST("/users", controllers.CreateUserByAdmin)
 		admin.PUT("/users/:id", controllers.UpdateUserByAdmin)
 		admin.DELETE("/users/:id", controllers.DeleteUser)
+		admin.POST("/users/:id/toggle-admin", controllers.ToggleAdminRole)
+		admin.POST("/users/:id/set-role", controllers.SetUserRole)
 		admin.GET("/organization/applications", controllers.GetAllOrganizationApplications)
 		admin.GET("/organization/applications/:id", controllers.GetOrganizationApplicationByID)
 		admin.POST("/organization/applications/:id/review", controllers.ReviewOrganizationApplication)

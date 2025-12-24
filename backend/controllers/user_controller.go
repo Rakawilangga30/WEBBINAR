@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -252,20 +253,35 @@ func UpdateMe(c *gin.Context) {
 // ================================
 func GetAllUsers(c *gin.Context) {
 	// Kita buat struct custom untuk response agar ada field Roles
+	type UserBasicInfo struct {
+		ID         int64  `db:"id" json:"id"`
+		Name       string `db:"name" json:"name"`
+		Email      string `db:"email" json:"email"`
+		Phone      string `db:"phone" json:"phone"`
+		ProfileImg string `db:"profile_img" json:"profile_img"`
+		Bio        string `db:"bio" json:"bio"`
+		AdminLevel int    `db:"admin_level" json:"admin_level"`
+	}
+
 	type UserWithRole struct {
-		models.User
+		UserBasicInfo
 		Roles []string `json:"roles"`
 	}
 
-	// 1. Ambil semua user
-	var users []models.User
+	// 1. Ambil semua user dengan COALESCE untuk handle NULL
+	var users []UserBasicInfo
 	err := config.DB.Select(&users, `
-        SELECT id, name, email, phone, profile_img, bio 
+        SELECT id, name, email, 
+               COALESCE(phone, '') as phone, 
+               COALESCE(profile_img, '') as profile_img, 
+               COALESCE(bio, '') as bio,
+               COALESCE(admin_level, 0) as admin_level
         FROM users ORDER BY id DESC
     `)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		println("Error fetching users:", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users: " + err.Error()})
 		return
 	}
 
@@ -295,8 +311,8 @@ func GetAllUsers(c *gin.Context) {
 
 		// Append ke hasil akhir
 		result = append(result, UserWithRole{
-			User:  u,
-			Roles: myRoles,
+			UserBasicInfo: u,
+			Roles:         myRoles,
 		})
 	}
 
@@ -304,14 +320,30 @@ func GetAllUsers(c *gin.Context) {
 }
 
 // ================================
-// ADMIN: GET USER BY ID
+// ADMIN: GET USER BY ID (DETAIL)
 // ================================
 func GetUserByID(c *gin.Context) {
 	id := c.Param("id")
 
-	var user models.User
+	// 1. Get user basic info
+	type UserBasic struct {
+		ID         int64  `db:"id" json:"id"`
+		Name       string `db:"name" json:"name"`
+		Email      string `db:"email" json:"email"`
+		Phone      string `db:"phone" json:"phone"`
+		ProfileImg string `db:"profile_img" json:"profile_img"`
+		Bio        string `db:"bio" json:"bio"`
+		CreatedAt  string `db:"created_at" json:"created_at"`
+		AdminLevel int    `db:"admin_level" json:"admin_level"`
+	}
+
+	var user UserBasic
 	err := config.DB.Get(&user,
-		`SELECT id, name, email, phone, profile_img, bio 
+		`SELECT id, name, email, COALESCE(phone, '') as phone, 
+		        COALESCE(profile_img, '') as profile_img, 
+		        COALESCE(bio, '') as bio,
+		        COALESCE(created_at, '') as created_at,
+		        COALESCE(admin_level, 0) as admin_level
 		 FROM users WHERE id = ?`,
 		id,
 	)
@@ -321,7 +353,140 @@ func GetUserByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": user})
+	// 2. Get user roles
+	type RoleInfo struct {
+		Name string `db:"name"`
+	}
+	var roles []RoleInfo
+	config.DB.Select(&roles, `
+		SELECT r.name FROM roles r
+		JOIN user_roles ur ON r.id = ur.role_id
+		WHERE ur.user_id = ?
+	`, id)
+
+	var roleNames []string
+	for _, r := range roles {
+		roleNames = append(roleNames, r.Name)
+	}
+
+	// 3. Get events joined (purchases)
+	type EventJoined struct {
+		EventID       int64   `db:"event_id" json:"event_id"`
+		EventTitle    string  `db:"event_title" json:"event_title"`
+		SessionsCount int     `db:"sessions_count" json:"sessions_count"`
+		TotalPaid     float64 `db:"total_paid" json:"total_paid"`
+	}
+	var eventsJoined []EventJoined
+	config.DB.Select(&eventsJoined, `
+		SELECT 
+			e.id as event_id,
+			e.title as event_title,
+			COUNT(p.id) as sessions_count,
+			SUM(p.price_paid) as total_paid
+		FROM purchases p
+		JOIN sessions s ON p.session_id = s.id
+		JOIN events e ON s.event_id = e.id
+		WHERE p.user_id = ?
+		GROUP BY e.id, e.title
+		ORDER BY total_paid DESC
+	`, id)
+
+	if eventsJoined == nil {
+		eventsJoined = []EventJoined{}
+	}
+
+	// 4. If organizer, get organization info
+	var orgInfo interface{} = nil
+	isOrganizer := false
+	for _, r := range roleNames {
+		if r == "ORGANIZATION" || r == "ORGANIZER" {
+			isOrganizer = true
+			break
+		}
+	}
+
+	if isOrganizer {
+		type OrgDetail struct {
+			ID          int64  `db:"id" json:"id"`
+			Name        string `db:"name" json:"name"`
+			Category    string `db:"category" json:"category"`
+			Description string `db:"description" json:"description"`
+			Email       string `db:"email" json:"email"`
+			Phone       string `db:"phone" json:"phone"`
+			Website     string `db:"website" json:"website"`
+			EventsCount int    `db:"events_count" json:"events_count"`
+		}
+
+		var org OrgDetail
+		err := config.DB.Get(&org, `
+			SELECT 
+				o.id, 
+				COALESCE(o.name, '') as name,
+				COALESCE(o.category, '') as category,
+				COALESCE(o.description, '') as description,
+				COALESCE(o.email, '') as email,
+				COALESCE(o.phone, '') as phone,
+				COALESCE(o.website, '') as website,
+				(SELECT COUNT(*) FROM events WHERE organization_id = o.id) as events_count
+			FROM organizations o 
+			WHERE o.owner_user_id = ?
+		`, id)
+
+		if err == nil {
+			// Get org events
+			type OrgEvent struct {
+				ID            int64  `db:"id" json:"id"`
+				Title         string `db:"title" json:"title"`
+				PublishStatus string `db:"publish_status" json:"publish_status"`
+				SessionsCount int    `db:"sessions_count" json:"sessions_count"`
+				BuyersCount   int    `db:"buyers_count" json:"buyers_count"`
+			}
+			var orgEvents []OrgEvent
+			config.DB.Select(&orgEvents, `
+				SELECT 
+					e.id, 
+					e.title,
+					COALESCE(e.publish_status, 'DRAFT') as publish_status,
+					(SELECT COUNT(*) FROM sessions WHERE event_id = e.id) as sessions_count,
+					(SELECT COUNT(DISTINCT p.user_id) FROM purchases p JOIN sessions s ON p.session_id = s.id WHERE s.event_id = e.id) as buyers_count
+				FROM events e
+				WHERE e.organization_id = ?
+				ORDER BY e.created_at DESC
+			`, org.ID)
+
+			if orgEvents == nil {
+				orgEvents = []OrgEvent{}
+			}
+
+			orgInfo = gin.H{
+				"id":           org.ID,
+				"name":         org.Name,
+				"category":     org.Category,
+				"description":  org.Description,
+				"email":        org.Email,
+				"phone":        org.Phone,
+				"website":      org.Website,
+				"events_count": org.EventsCount,
+				"events":       orgEvents,
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":          user.ID,
+			"name":        user.Name,
+			"email":       user.Email,
+			"phone":       user.Phone,
+			"profile_img": user.ProfileImg,
+			"bio":         user.Bio,
+			"created_at":  user.CreatedAt,
+			"admin_level": user.AdminLevel,
+			"roles":       roleNames,
+		},
+		"events_joined": eventsJoined,
+		"organization":  orgInfo,
+	})
 }
 
 // ================================
@@ -379,10 +544,12 @@ func DeleteUser(c *gin.Context) {
 // ADMIN: CREATE NEW USER
 // ================================
 type AdminCreateUserRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	Role       string `json:"role"`        // USER, ORGANIZATION, ADMIN
+	AdminLevel int    `json:"admin_level"` // 1=Super Admin, 2=Regular Admin (only for ADMIN)
+	OrgName    string `json:"org_name"`    // Optional, for ORGANIZATION role
 }
 
 func CreateUserByAdmin(c *gin.Context) {
@@ -408,11 +575,20 @@ func CreateUserByAdmin(c *gin.Context) {
 		return
 	}
 
-	// Insert user
+	// Determine admin_level
+	adminLevel := 0
+	if req.Role == "ADMIN" {
+		adminLevel = req.AdminLevel
+		if adminLevel == 0 {
+			adminLevel = 2 // default to regular admin
+		}
+	}
+
+	// Insert user with admin_level
 	res, err := config.DB.Exec(`
-		INSERT INTO users (name, email, password_hash)
-		VALUES (?, ?, ?)
-	`, req.Name, req.Email, string(hash))
+		INSERT INTO users (name, email, password_hash, admin_level)
+		VALUES (?, ?, ?, ?)
+	`, req.Name, req.Email, string(hash), adminLevel)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
@@ -443,9 +619,145 @@ func CreateUserByAdmin(c *gin.Context) {
 		return
 	}
 
+	// If organization, create org profile automatically
+	if req.Role == "ORGANIZATION" {
+		orgName := req.OrgName
+		if orgName == "" {
+			orgName = req.Name + "'s Organization"
+		}
+		_, err = config.DB.Exec(`
+			INSERT INTO organizations (owner_user_id, name, status)
+			VALUES (?, ?, 'APPROVED')
+		`, userID, orgName)
+		if err != nil {
+			// Log but don't fail
+			println("Warning: Failed to create org profile:", err.Error())
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User created successfully",
 		"user_id": userID,
 		"role":    req.Role,
 	})
+}
+
+// ================================
+// ADMIN: SET USER ROLE (REPLACE, NOT ADD)
+// ================================
+type SetRoleRequest struct {
+	Role       string `json:"role"`        // USER, ORGANIZATION, ADMIN
+	AdminLevel int    `json:"admin_level"` // 0=none, 1=super, 2=regular (only for ADMIN)
+}
+
+func SetUserRole(c *gin.Context) {
+	// Check current admin level
+	currentUserID := c.GetInt64("user_id")
+	var currentAdminLevel int
+	config.DB.Get(&currentAdminLevel, `SELECT COALESCE(admin_level, 0) FROM users WHERE id = ?`, currentUserID)
+
+	targetID := c.Param("id")
+
+	// Cannot change own role
+	if fmt.Sprintf("%d", currentUserID) == targetID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Tidak dapat mengubah role sendiri"})
+		return
+	}
+
+	// Check target user's current admin level
+	var targetAdminLevel int
+	config.DB.Get(&targetAdminLevel, `SELECT COALESCE(admin_level, 0) FROM users WHERE id = ?`, targetID)
+
+	// Super Admin (level 1) cannot be changed by anyone
+	if targetAdminLevel == 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Super Admin tidak dapat diubah rolenya"})
+		return
+	}
+
+	// Regular Admin (level 2) can only be changed by Super Admin
+	if targetAdminLevel == 2 && currentAdminLevel != 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin hanya dapat diubah oleh Super Admin"})
+		return
+	}
+
+	var req SetRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	// Regular Admin cannot promote to Super Admin
+	if currentAdminLevel == 2 && req.Role == "ADMIN" && req.AdminLevel == 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin biasa tidak dapat mengangkat Super Admin"})
+		return
+	}
+
+	// Get role IDs
+	var userRoleID, orgRoleID, adminRoleID int
+	config.DB.Get(&userRoleID, `SELECT id FROM roles WHERE name = 'USER'`)
+	config.DB.Get(&orgRoleID, `SELECT id FROM roles WHERE name = 'ORGANIZATION'`)
+	config.DB.Get(&adminRoleID, `SELECT id FROM roles WHERE name = 'ADMIN'`)
+
+	if userRoleID == 0 {
+		userRoleID = 1
+	}
+	if orgRoleID == 0 {
+		orgRoleID = 2
+	}
+	if adminRoleID == 0 {
+		adminRoleID = 3
+	}
+
+	// Delete all existing roles for this user
+	config.DB.Exec(`DELETE FROM user_roles WHERE user_id = ?`, targetID)
+
+	// Set new role
+	var newRoleID int
+	var newAdminLevel int = 0
+
+	switch req.Role {
+	case "ADMIN":
+		newRoleID = adminRoleID
+		newAdminLevel = req.AdminLevel
+		if newAdminLevel == 0 {
+			newAdminLevel = 2 // default to regular admin
+		}
+	case "ORGANIZATION":
+		newRoleID = orgRoleID
+	default:
+		newRoleID = userRoleID
+	}
+
+	// Insert new role
+	_, err := config.DB.Exec(`INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`, targetID, newRoleID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set role"})
+		return
+	}
+
+	// Update admin_level
+	config.DB.Exec(`UPDATE users SET admin_level = ? WHERE id = ?`, newAdminLevel, targetID)
+
+	// If setting as organization, create org profile if not exists
+	if req.Role == "ORGANIZATION" {
+		var existingOrgID int64
+		err := config.DB.Get(&existingOrgID, `SELECT id FROM organizations WHERE owner_user_id = ?`, targetID)
+		if err != nil {
+			// Create new org profile
+			config.DB.Exec(`INSERT INTO organizations (owner_user_id, name, status) VALUES (?, '', 'APPROVED')`, targetID)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Role berhasil diubah",
+		"role":    req.Role,
+	})
+}
+
+// ================================
+// ADMIN: TOGGLE ADMIN ROLE (LEGACY - keep for backward compatibility)
+// ================================
+func ToggleAdminRole(c *gin.Context) {
+	// Redirect to SetUserRole
+	c.JSON(http.StatusBadRequest, gin.H{"error": "Gunakan endpoint /set-role dengan body {role, admin_level}"})
 }

@@ -1,12 +1,54 @@
 import { useEffect, useState } from "react";
+import api from "../api";
 
 export default function DashboardHome() {
     const [user, setUser] = useState({});
+    const [courseCount, setCourseCount] = useState(0);
+    const [eventCount, setEventCount] = useState(0);
+    const [publishedEventCount, setPublishedEventCount] = useState(0);
+    const [totalBuyers, setTotalBuyers] = useState(0);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const data = JSON.parse(localStorage.getItem("user") || "{}");
         setUser(data);
+        fetchDashboardStats(data);
     }, []);
+
+    const fetchDashboardStats = async (userData) => {
+        try {
+            // Fetch jumlah kursus yang dibeli (untuk semua user)
+            const purchaseRes = await api.get("/user/purchases");
+            const purchases = purchaseRes.data.purchases || [];
+            // Hitung jumlah event unik yang dibeli
+            const uniqueEvents = new Set(purchases.map(p => p.event_id));
+            setCourseCount(uniqueEvents.size);
+
+            // Jika user adalah Organizer, fetch data event dan pembeli
+            if (userData.roles?.includes("ORGANIZER")) {
+                try {
+                    // Fetch events untuk menghitung published vs total
+                    const eventsRes = await api.get("/organization/events");
+                    const events = eventsRes.data.events || [];
+                    setEventCount(events.length);
+                    const published = events.filter(ev => ev.publish_status === "PUBLISHED").length;
+                    setPublishedEventCount(published);
+
+                    // Fetch report untuk total buyers
+                    const reportRes = await api.get("/organization/report");
+                    const reportEvents = reportRes.data.events || [];
+                    const buyers = reportEvents.reduce((sum, ev) => sum + (ev.buyers || 0), 0);
+                    setTotalBuyers(buyers);
+                } catch (orgError) {
+                    console.log("Not an organization yet or error:", orgError);
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching dashboard stats:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div>
@@ -49,7 +91,7 @@ export default function DashboardHome() {
                 {/* Kursus Saya Card */}
                 <StatCard
                     title="Kursus Saya"
-                    value="0"
+                    value={loading ? "..." : courseCount.toString()}
                     icon="📚"
                     color="#3b82f6"
                     bgColor="#eff6ff"
@@ -59,7 +101,8 @@ export default function DashboardHome() {
                 {user.roles?.includes("ORGANIZER") && (
                     <StatCard
                         title="Event Aktif"
-                        value="0"
+                        value={loading ? "..." : `${publishedEventCount}/${eventCount}`}
+                        subtitle="Published / Total"
                         icon="🎯"
                         color="#22c55e"
                         bgColor="#f0fdf4"
@@ -70,7 +113,7 @@ export default function DashboardHome() {
                 {user.roles?.includes("ORGANIZER") && (
                     <StatCard
                         title="Total Peserta"
-                        value="0"
+                        value={loading ? "..." : totalBuyers.toString()}
                         icon="👥"
                         color="#f59e0b"
                         bgColor="#fffbeb"
@@ -128,7 +171,7 @@ export default function DashboardHome() {
 }
 
 // Stat Card Component
-function StatCard({ title, value, icon, color, bgColor }) {
+function StatCard({ title, value, subtitle, icon, color, bgColor }) {
     return (
         <div style={{
             background: "white",
@@ -172,6 +215,15 @@ function StatCard({ title, value, icon, color, bgColor }) {
             }}>
                 {value}
             </span>
+            {subtitle && (
+                <span style={{
+                    fontSize: "0.75rem",
+                    color: "#94a3b8",
+                    marginTop: "4px"
+                }}>
+                    {subtitle}
+                </span>
+            )}
         </div>
     );
 }
