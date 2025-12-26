@@ -75,9 +75,74 @@ func ApplyOrganization(c *gin.Context) {
 		return
 	}
 
+	// Notify all admins about new application
+	go func() {
+		// Get applicant name
+		var applicantName string
+		config.DB.Get(&applicantName, "SELECT name FROM users WHERE id = ?", userID)
+
+		// Get all admin user IDs
+		var adminIDs []int64
+		config.DB.Select(&adminIDs, `
+			SELECT u.id FROM users u
+			JOIN user_roles ur ON u.id = ur.user_id
+			JOIN roles r ON ur.role_id = r.id
+			WHERE r.name = 'ADMIN'
+		`)
+
+		// Send notification to each admin
+		for _, adminID := range adminIDs {
+			CreateNotification(
+				adminID,
+				"new_application",
+				"📝 Pengajuan Baru!",
+				applicantName+" mengajukan organisasi \""+req.OrgName+"\"",
+			)
+		}
+	}()
+
 	// 4. Return success
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Organization application submitted successfully",
+	})
+}
+
+// =============================
+// USER: GET MY APPLICATION STATUS
+// =============================
+func GetMyApplicationStatus(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	type ApplicationStatus struct {
+		ID          int64   `db:"id" json:"id"`
+		Status      string  `db:"status" json:"status"`
+		OrgName     string  `db:"org_name" json:"org_name"`
+		SubmittedAt string  `db:"submitted_at" json:"submitted_at"`
+		ReviewedAt  *string `db:"reviewed_at" json:"reviewed_at,omitempty"`
+		ReviewNote  *string `db:"review_note" json:"review_note,omitempty"`
+	}
+
+	var app ApplicationStatus
+	err := config.DB.Get(&app, `
+		SELECT id, status, org_name, submitted_at, reviewed_at, review_note
+		FROM organization_applications 
+		WHERE user_id = ? 
+		ORDER BY submitted_at DESC 
+		LIMIT 1
+	`, userID)
+
+	if err != nil {
+		// No application found
+		c.JSON(http.StatusOK, gin.H{
+			"has_application": false,
+			"application":     nil,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"has_application": true,
+		"application":     app,
 	})
 }
 
@@ -132,6 +197,32 @@ func CreateSession(c *gin.Context) {
 	}
 
 	sessionID, _ := res.LastInsertId()
+
+	// Notify users who have purchased sessions from this event
+	go func() {
+		// Get event title
+		var eventTitle string
+		config.DB.Get(&eventTitle, "SELECT title FROM events WHERE id = ?", eventID)
+
+		// Get all users who purchased any session of this event
+		var buyerIDs []int64
+		config.DB.Select(&buyerIDs, `
+			SELECT DISTINCT p.user_id 
+			FROM purchases p
+			JOIN sessions s ON p.session_id = s.id
+			WHERE s.event_id = ?
+		`, eventID)
+
+		// Send notification to each buyer
+		for _, buyerID := range buyerIDs {
+			CreateNotification(
+				buyerID,
+				"new_session",
+				"📚 Sesi Baru Tersedia!",
+				"Event \""+eventTitle+"\" menambahkan sesi baru: \""+req.Title+"\"",
+			)
+		}
+	}()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Session created!", "session_id": sessionID})
 }
-

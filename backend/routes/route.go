@@ -47,6 +47,11 @@ func RegisterRoutes(r *gin.Engine) {
 		)
 		userGroup.GET("/sessions/signed-video/:filename", controllers.GetSignedVideoURL)
 		userGroup.GET("/sessions/signed-file/:filename", controllers.GetSignedFileURL)
+
+		// Notifications
+		userGroup.GET("/notifications", controllers.GetMyNotifications)
+		userGroup.PUT("/notifications/:id/read", controllers.MarkNotificationAsRead)
+		userGroup.PUT("/notifications/read-all", controllers.MarkAllNotificationsAsRead)
 	}
 
 	// ==========================================
@@ -56,6 +61,10 @@ func RegisterRoutes(r *gin.Engine) {
 		middlewares.AuthRequired(),
 		middlewares.RoleOnly("USER"),
 		controllers.ApplyOrganization,
+	)
+	api.GET("/organization/my-application",
+		middlewares.AuthRequired(),
+		controllers.GetMyApplicationStatus,
 	)
 
 	// ==========================================
@@ -115,5 +124,12 @@ func RegisterRoutes(r *gin.Engine) {
 		admin.GET("/organization/applications", controllers.GetAllOrganizationApplications)
 		admin.GET("/organization/applications/:id", controllers.GetOrganizationApplicationByID)
 		admin.POST("/organization/applications/:id/review", controllers.ReviewOrganizationApplication)
+
+		// Admin Organization Management
+		admin.GET("/organizations", controllers.GetAllOrganizations)
+		admin.GET("/organizations/:id", controllers.GetOrganizationDetailAdmin)
+		admin.PUT("/organizations/:id", controllers.UpdateOrganizationByAdmin)
+		admin.GET("/organizations/:id/sessions/:sessionId/media", controllers.GetSessionMediaAdmin)
+		admin.DELETE("/organizations/:id", controllers.DeleteOrganization)
 	}
 }

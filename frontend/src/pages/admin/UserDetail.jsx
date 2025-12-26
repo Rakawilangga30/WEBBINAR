@@ -10,7 +10,7 @@ export default function UserDetail() {
     const [organization, setOrganization] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
-    const [editForm, setEditForm] = useState({ name: "", email: "", phone: "", bio: "" });
+    const [editForm, setEditForm] = useState({ name: "", email: "", phone: "", bio: "", reason: "" });
 
     useEffect(() => {
         fetchUserDetail();
@@ -33,7 +33,8 @@ export default function UserDetail() {
                     name: res.data.user.name || "",
                     email: res.data.user.email || "",
                     phone: res.data.user.phone || "",
-                    bio: res.data.user.bio || ""
+                    bio: res.data.user.bio || "",
+                    reason: ""  // Clear reason on fetch
                 });
             }
         } catch (error) {
@@ -44,8 +45,16 @@ export default function UserDetail() {
     };
 
     const handleUpdate = async () => {
+        // Prompt for reason
+        const reason = prompt("📝 Masukkan alasan perubahan profil user ini:");
+        if (reason === null) return; // User cancelled
+        if (!reason.trim()) {
+            alert("⚠️ Alasan perubahan wajib diisi!");
+            return;
+        }
+
         try {
-            await api.put(`/admin/users/${userId}`, editForm);
+            await api.put(`/admin/users/${userId}`, { ...editForm, reason: reason });
             alert("✅ User berhasil diupdate! User akan menerima notifikasi perubahan.");
             setEditMode(false);
             fetchUserDetail();
@@ -271,6 +280,14 @@ export default function UserDetail() {
                             )}
                         </div>
                         <div>
+                            <label style={labelStyle}>Jenis Kelamin</label>
+                            <p style={valueStyle}>{user.gender || "-"}</p>
+                        </div>
+                        <div>
+                            <label style={labelStyle}>Tanggal Lahir</label>
+                            <p style={valueStyle}>{user.birthdate || "-"}</p>
+                        </div>
+                        <div>
                             <label style={labelStyle}>Role</label>
                             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                                 {user.roles?.map((r, i) => {
@@ -284,6 +301,10 @@ export default function UserDetail() {
                                     );
                                 })}
                             </div>
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                            <label style={labelStyle}>Alamat</label>
+                            <p style={valueStyle}>{user.address || "-"}</p>
                         </div>
                         <div style={{ gridColumn: "1 / -1" }}>
                             <label style={labelStyle}>Bio</label>

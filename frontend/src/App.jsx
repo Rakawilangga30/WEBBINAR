@@ -15,11 +15,16 @@ import DashboardHome from "./pages/DashboardHome"; // Halaman "Halo User" (Buat 
 import UserProfile from "./pages/user/UserProfile";
 import UserList from "./pages/admin/UserList";
 import AdminOrgApprovals from "./pages/admin/AdminOrgApprovals";
+import OrgApplicationDetail from "./pages/admin/OrgApplicationDetail";
+import AdminOrgList from "./pages/admin/AdminOrgList";
+import AdminOrgDetail from "./pages/admin/AdminOrgDetail";
 import MyOrganization from "./pages/org/MyOrganization";
 import ManageEvent from "./pages/org/ManageEvent";
 import CreateEvent from "./pages/org/CreateEvent";
-import MyCourses from "./pages/user/MyCourses"; // Kita akan buat file ini nanti
-import OrgEventList from "./pages/org/OrgEventList"; // Kita akan buat file ini nanti
+import MyCourses from "./pages/user/MyCourses";
+import BecomeCreator from "./pages/user/BecomeCreator";
+import Notifications from "./pages/user/Notifications";
+import OrgEventList from "./pages/org/OrgEventList";
 import EventBuyers from "./pages/org/EventBuyers";
 import UserDetail from "./pages/admin/UserDetail";
 
@@ -48,11 +53,16 @@ function App() {
           <Route path="profile" element={<UserProfile />} />
           {/* Tambahkan ini agar menu "Kursus Saya" di sidebar jalan */}
           <Route path="my-courses" element={<MyCourses />} />
+          <Route path="become-creator" element={<BecomeCreator />} />
+          <Route path="notifications" element={<Notifications />} />
 
           {/* Admin Routes */}
           <Route path="admin/users" element={<UserList />} />
           <Route path="admin/users/:userId" element={<UserDetail />} />
           <Route path="admin/approvals" element={<AdminOrgApprovals />} />
+          <Route path="admin/approvals/:appId" element={<OrgApplicationDetail />} />
+          <Route path="admin/organizations" element={<AdminOrgList />} />
+          <Route path="admin/organizations/:orgId" element={<AdminOrgDetail />} />
 
           {/* Organization Routes */}
           <Route path="org" element={<MyOrganization />} />

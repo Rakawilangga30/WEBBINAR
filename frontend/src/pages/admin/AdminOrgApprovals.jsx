@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../../api";
 
 export default function AdminOrgApprovals() {
     const [applications, setApplications] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [filter, setFilter] = useState("ALL"); // ALL, PENDING, APPROVED, REJECTED
 
     useEffect(() => {
         loadData();
@@ -37,6 +39,31 @@ export default function AdminOrgApprovals() {
         }
     };
 
+    const getStatusBadge = (status) => {
+        const styles = {
+            PENDING: { bg: "#fef3c7", color: "#d97706", label: "⏳ Pending" },
+            APPROVED: { bg: "#dcfce7", color: "#16a34a", label: "✅ Approved" },
+            REJECTED: { bg: "#fee2e2", color: "#dc2626", label: "❌ Rejected" }
+        };
+        const s = styles[status] || styles.PENDING;
+        return (
+            <span style={{
+                fontSize: "0.75rem",
+                background: s.bg,
+                color: s.color,
+                padding: "4px 10px",
+                borderRadius: "6px",
+                fontWeight: "600"
+            }}>
+                {s.label}
+            </span>
+        );
+    };
+
+    const filteredApps = filter === "ALL"
+        ? applications
+        : applications.filter(app => app.status === filter);
+
     return (
         <div>
             {/* Header */}
@@ -47,6 +74,39 @@ export default function AdminOrgApprovals() {
                 <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
                     Review pengajuan menjadi organizer
                 </p>
+            </div>
+
+            {/* Filter Tabs */}
+            <div style={{
+                display: "flex",
+                gap: "8px",
+                marginBottom: "20px",
+                flexWrap: "wrap"
+            }}>
+                {["ALL", "PENDING", "APPROVED", "REJECTED"].map(f => (
+                    <button
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        style={{
+                            padding: "8px 16px",
+                            borderRadius: "8px",
+                            border: filter === f ? "none" : "1px solid #e2e8f0",
+                            background: filter === f ? "#3b82f6" : "white",
+                            color: filter === f ? "white" : "#64748b",
+                            cursor: "pointer",
+                            fontWeight: "500",
+                            fontSize: "0.85rem",
+                            transition: "all 0.2s"
+                        }}
+                    >
+                        {f === "ALL" ? "Semua" : f}
+                        {f !== "ALL" && (
+                            <span style={{ marginLeft: "6px", opacity: 0.8 }}>
+                                ({applications.filter(a => a.status === f).length})
+                            </span>
+                        )}
+                    </button>
+                ))}
             </div>
 
             {/* Content */}
@@ -69,18 +129,24 @@ export default function AdminOrgApprovals() {
                         }}></div>
                         Memuat data...
                     </div>
-                ) : applications.length === 0 ? (
+                ) : filteredApps.length === 0 ? (
                     <div style={{
                         textAlign: "center",
                         padding: "48px 20px",
                         color: "#64748b"
                     }}>
-                        <div style={{ fontSize: "3rem", marginBottom: "16px" }}>✅</div>
-                        <p style={{ margin: 0, fontWeight: "500" }}>Tidak ada pengajuan pending saat ini.</p>
+                        <div style={{ fontSize: "3rem", marginBottom: "16px" }}>
+                            {filter === "PENDING" ? "✅" : "📋"}
+                        </div>
+                        <p style={{ margin: 0, fontWeight: "500" }}>
+                            {filter === "PENDING"
+                                ? "Tidak ada pengajuan pending saat ini."
+                                : `Tidak ada aplikasi dengan status ${filter}.`}
+                        </p>
                     </div>
                 ) : (
                     <div style={{ display: "grid", gap: "16px" }}>
-                        {applications.map(app => (
+                        {filteredApps.map(app => (
                             <div key={app.id} style={{
                                 border: "1px solid #e2e8f0",
                                 borderRadius: "12px",
@@ -100,7 +166,8 @@ export default function AdminOrgApprovals() {
                                             display: "flex",
                                             alignItems: "center",
                                             gap: "10px",
-                                            marginBottom: "12px"
+                                            marginBottom: "12px",
+                                            flexWrap: "wrap"
                                         }}>
                                             <h3 style={{ margin: 0, color: "#1e293b", fontSize: "1.1rem" }}>
                                                 {app.org_name}
@@ -115,6 +182,7 @@ export default function AdminOrgApprovals() {
                                             }}>
                                                 {app.org_category}
                                             </span>
+                                            {getStatusBadge(app.status)}
                                         </div>
 
                                         <p style={{
@@ -122,7 +190,7 @@ export default function AdminOrgApprovals() {
                                             fontSize: "0.9rem",
                                             color: "#475569"
                                         }}>
-                                            <strong>Pemohon:</strong> User ID {app.user_id} ({app.org_email})
+                                            <strong>Pemohon:</strong> {app.user_name || `User ID ${app.user_id}`} ({app.org_email})
                                         </p>
 
                                         <div style={{
@@ -154,41 +222,81 @@ export default function AdminOrgApprovals() {
                                                 🔗 Lihat Website
                                             </a>
                                         )}
+
+                                        {/* Show review note if exists */}
+                                        {app.review_note && (
+                                            <div style={{
+                                                marginTop: "12px",
+                                                padding: "10px 14px",
+                                                background: app.status === "APPROVED" ? "#f0fdf4" : "#fef2f2",
+                                                borderRadius: "8px",
+                                                fontSize: "0.85rem",
+                                                color: app.status === "APPROVED" ? "#166534" : "#991b1b"
+                                            }}>
+                                                <strong>Catatan Review:</strong> {app.review_note}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
-                                        <button
-                                            onClick={() => handleReview(app.id, "APPROVED")}
+                                    <div style={{ display: "flex", gap: "10px", flexShrink: 0, flexWrap: "wrap" }}>
+                                        {/* Review Detail Button - Always visible */}
+                                        <Link
+                                            to={`/dashboard/admin/approvals/${app.id}`}
                                             style={{
                                                 padding: "10px 18px",
-                                                background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                                                background: "linear-gradient(135deg, #6366f1, #4f46e5)",
                                                 color: "white",
                                                 border: "none",
                                                 borderRadius: "8px",
                                                 cursor: "pointer",
                                                 fontWeight: "600",
                                                 fontSize: "0.9rem",
-                                                transition: "all 0.2s ease"
+                                                textDecoration: "none",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "6px"
                                             }}
                                         >
-                                            ✅ Setujui
-                                        </button>
-                                        <button
-                                            onClick={() => handleReview(app.id, "REJECTED")}
-                                            style={{
-                                                padding: "10px 18px",
-                                                background: "linear-gradient(135deg, #ef4444, #dc2626)",
-                                                color: "white",
-                                                border: "none",
-                                                borderRadius: "8px",
-                                                cursor: "pointer",
-                                                fontWeight: "600",
-                                                fontSize: "0.9rem",
-                                                transition: "all 0.2s ease"
-                                            }}
-                                        >
-                                            ❌ Tolak
-                                        </button>
+                                            🔍 Review
+                                        </Link>
+
+                                        {/* Approve/Reject only for PENDING */}
+                                        {app.status === "PENDING" && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleReview(app.id, "APPROVED")}
+                                                    style={{
+                                                        padding: "10px 18px",
+                                                        background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                                                        color: "white",
+                                                        border: "none",
+                                                        borderRadius: "8px",
+                                                        cursor: "pointer",
+                                                        fontWeight: "600",
+                                                        fontSize: "0.9rem",
+                                                        transition: "all 0.2s ease"
+                                                    }}
+                                                >
+                                                    ✅ Setujui
+                                                </button>
+                                                <button
+                                                    onClick={() => handleReview(app.id, "REJECTED")}
+                                                    style={{
+                                                        padding: "10px 18px",
+                                                        background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                                                        color: "white",
+                                                        border: "none",
+                                                        borderRadius: "8px",
+                                                        cursor: "pointer",
+                                                        fontWeight: "600",
+                                                        fontSize: "0.9rem",
+                                                        transition: "all 0.2s ease"
+                                                    }}
+                                                >
+                                                    ❌ Tolak
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>

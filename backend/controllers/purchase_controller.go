@@ -65,6 +65,36 @@ func BuySession(c *gin.Context) {
 		return
 	}
 
+	// Notify organization owner about the purchase
+	go func() {
+		// Get session and event info
+		var sessionInfo struct {
+			SessionTitle string `db:"session_title"`
+			EventTitle   string `db:"event_title"`
+			OwnerID      int64  `db:"owner_id"`
+		}
+		config.DB.Get(&sessionInfo, `
+			SELECT s.title as session_title, e.title as event_title, o.owner_user_id as owner_id
+			FROM sessions s
+			JOIN events e ON s.event_id = e.id
+			JOIN organizations o ON e.organization_id = o.id
+			WHERE s.id = ?
+		`, sessionID)
+
+		// Get buyer name
+		var buyerName string
+		config.DB.Get(&buyerName, "SELECT name FROM users WHERE id = ?", userID)
+
+		if sessionInfo.OwnerID > 0 {
+			CreateNotification(
+				sessionInfo.OwnerID,
+				"new_purchase",
+				"💰 Pembelian Baru!",
+				buyerName+" membeli sesi \""+sessionInfo.SessionTitle+"\" dari event \""+sessionInfo.EventTitle+"\"",
+			)
+		}
+	}()
+
 	c.JSON(200, gin.H{
 		"message":    "Purchase successful",
 		"session_id": sessionID,

@@ -34,12 +34,15 @@ func GetMe(c *gin.Context) {
 	var err error
 	var success bool = false
 
-	// Try 1: Query with all columns (bio and username)
+	// Try 1: Query with all columns including extended profile
 	err = config.DB.Get(&user,
 		`SELECT id, name, email, COALESCE(phone, '') as phone, 
 		        COALESCE(profile_img, '') as profile_img, 
 		        COALESCE(bio, '') as bio, 
-		        COALESCE(username, '') as username
+		        COALESCE(username, '') as username,
+		        COALESCE(gender, '') as gender,
+		        COALESCE(birthdate, '') as birthdate,
+		        COALESCE(address, '') as address
 		 FROM users WHERE id = ?`,
 		userID,
 	)
@@ -124,6 +127,10 @@ type UpdateMeRequest struct {
 	ProfileImg string `json:"profile_img"`
 	Bio        string `json:"bio"`
 	Username   string `json:"username"`
+	// Extended profile fields
+	Gender    string `json:"gender"`
+	Birthdate string `json:"birthdate"`
+	Address   string `json:"address"`
 }
 
 func UpdateMe(c *gin.Context) {
@@ -160,18 +167,21 @@ func UpdateMe(c *gin.Context) {
 	var err error
 	var success bool = false
 
-	// Try 1: Update with all fields (bio and username)
+	// Try 1: Update with all fields including extended profile
 	_, err = config.DB.Exec(`
 		UPDATE users 
-		SET name = ?, phone = ?, profile_img = ?, bio = ?, username = ?
+		SET name = ?, phone = ?, profile_img = ?, bio = ?, username = ?,
+		    gender = ?, birthdate = ?, address = ?
 		WHERE id = ?
-	`, req.Name, req.Phone, req.ProfileImg, req.Bio, req.Username, userID)
+	`, req.Name, req.Phone, req.ProfileImg, req.Bio, req.Username,
+		req.Gender, req.Birthdate, req.Address,
+		userID)
 
 	if err == nil {
 		success = true
-		println("Update succeeded with all fields")
+		println("Update succeeded with all fields including extended profile")
 	} else {
-		println("Try 1 failed (bio+username):", err.Error())
+		println("Try 1 failed (extended profile):", err.Error())
 	}
 
 	// Try 2: WITHOUT bio, WITH username (in case bio column doesn't exist)
@@ -335,6 +345,9 @@ func GetUserByID(c *gin.Context) {
 		Bio        string `db:"bio" json:"bio"`
 		CreatedAt  string `db:"created_at" json:"created_at"`
 		AdminLevel int    `db:"admin_level" json:"admin_level"`
+		Gender     string `db:"gender" json:"gender"`
+		Birthdate  string `db:"birthdate" json:"birthdate"`
+		Address    string `db:"address" json:"address"`
 	}
 
 	var user UserBasic
@@ -343,7 +356,10 @@ func GetUserByID(c *gin.Context) {
 		        COALESCE(profile_img, '') as profile_img, 
 		        COALESCE(bio, '') as bio,
 		        COALESCE(created_at, '') as created_at,
-		        COALESCE(admin_level, 0) as admin_level
+		        COALESCE(admin_level, 0) as admin_level,
+		        COALESCE(gender, '') as gender,
+		        COALESCE(birthdate, '') as birthdate,
+		        COALESCE(address, '') as address
 		 FROM users WHERE id = ?`,
 		id,
 	)
@@ -482,6 +498,9 @@ func GetUserByID(c *gin.Context) {
 			"bio":         user.Bio,
 			"created_at":  user.CreatedAt,
 			"admin_level": user.AdminLevel,
+			"gender":      user.Gender,
+			"birthdate":   user.Birthdate,
+			"address":     user.Address,
 			"roles":       roleNames,
 		},
 		"events_joined": eventsJoined,
@@ -493,10 +512,11 @@ func GetUserByID(c *gin.Context) {
 // ADMIN: UPDATE USER
 // ================================
 type AdminUpdateUserRequest struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Phone string `json:"phone"`
-	Bio   string `json:"bio"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Phone  string `json:"phone"`
+	Bio    string `json:"bio"`
+	Reason string `json:"reason"` // Alasan perubahan
 }
 
 func UpdateUserByAdmin(c *gin.Context) {
@@ -518,6 +538,24 @@ func UpdateUserByAdmin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
 		return
 	}
+
+	// Notify user about profile change
+	go func() {
+		var userID int64
+		config.DB.Get(&userID, "SELECT id FROM users WHERE id = ?", id)
+		if userID > 0 {
+			message := "Admin telah memperbarui informasi profil Anda."
+			if req.Reason != "" {
+				message += " Alasan: " + req.Reason
+			}
+			CreateNotification(
+				userID,
+				"profile_updated",
+				"👤 Profil Diperbarui",
+				message,
+			)
+		}
+	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }

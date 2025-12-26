@@ -10,4 +10,9 @@ type User struct {
 	ProfileImg string `db:"profile_img" json:"profile_img"`
 	Bio        string `db:"bio" json:"bio"`
 	Username   string `db:"username" json:"username"`
+
+	// Extended profile fields
+	Gender    string `db:"gender" json:"gender"`
+	Birthdate string `db:"birthdate" json:"birthdate"`
+	Address   string `db:"address" json:"address"`
 }

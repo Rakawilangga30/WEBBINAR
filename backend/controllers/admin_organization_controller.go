@@ -95,6 +95,27 @@ func ReviewOrganizationApplication(c *gin.Context) {
 		return
 	}
 
+	// Create notification for user
+	if req.Status == "APPROVED" {
+		CreateNotification(
+			application.UserID,
+			"application_approved",
+			"🎉 Pengajuan Disetujui!",
+			"Selamat! Pengajuan organisasi \""+application.OrgName+"\" telah disetujui. Anda sekarang dapat membuat event.",
+		)
+	} else if req.Status == "REJECTED" {
+		message := "Pengajuan organisasi \"" + application.OrgName + "\" ditolak."
+		if req.Note != "" {
+			message += " Alasan: " + req.Note
+		}
+		CreateNotification(
+			application.UserID,
+			"application_rejected",
+			"❌ Pengajuan Ditolak",
+			message,
+		)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Application reviewed successfully",
 		"status":  req.Status,
@@ -104,13 +125,27 @@ func ReviewOrganizationApplication(c *gin.Context) {
 // =======================================
 // ADMIN: GET ALL ORGANIZATION APPLICATIONS
 // =======================================
+
+type ApplicationWithUser struct {
+	models.OrganizationApplication
+	UserName       string  `db:"user_name" json:"user_name"`
+	UserEmail      string  `db:"user_email" json:"user_email"`
+	UserProfileImg *string `db:"user_profile_img" json:"user_profile_img"`
+}
+
 func GetAllOrganizationApplications(c *gin.Context) {
 
-	var applications []models.OrganizationApplication
+	var applications []ApplicationWithUser
 
 	err := config.DB.Select(&applications, `
-		SELECT * FROM organization_applications 
-		ORDER BY submitted_at DESC
+		SELECT 
+			oa.*,
+			u.name AS user_name,
+			u.email AS user_email,
+			u.profile_img AS user_profile_img
+		FROM organization_applications oa
+		LEFT JOIN users u ON oa.user_id = u.id
+		ORDER BY oa.submitted_at DESC
 	`)
 
 	if err != nil {
@@ -128,10 +163,17 @@ func GetOrganizationApplicationByID(c *gin.Context) {
 
 	id := c.Param("id")
 
-	var application models.OrganizationApplication
+	var application ApplicationWithUser
 
 	err := config.DB.Get(&application, `
-		SELECT * FROM organization_applications WHERE id = ?
+		SELECT 
+			oa.*,
+			u.name AS user_name,
+			u.email AS user_email,
+			u.profile_img AS user_profile_img
+		FROM organization_applications oa
+		LEFT JOIN users u ON oa.user_id = u.id
+		WHERE oa.id = ?
 	`, id)
 
 	if err != nil {
@@ -141,4 +183,3 @@ func GetOrganizationApplicationByID(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"application": application})
 }
-

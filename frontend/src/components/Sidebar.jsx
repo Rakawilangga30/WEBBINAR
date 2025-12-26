@@ -93,6 +93,11 @@ export default function Sidebar() {
         <MenuItem to="/dashboard/profile" label="Profil Saya" icon="👤" />
         <MenuItem to="/dashboard/my-courses" label="Kursus Saya" icon="📚" />
 
+        {/* Jadi Creator - Only show for regular users (not ORGANIZER or ADMIN) */}
+        {!roles.includes("ORGANIZER") && !roles.includes("ADMIN") && (
+          <MenuItem to="/dashboard/become-creator" label="Jadi Creator" icon="🚀" />
+        )}
+
         {/* ORGANIZER Menu */}
         {roles.includes("ORGANIZER") && (
           <>
@@ -107,6 +112,7 @@ export default function Sidebar() {
           <>
             <SectionTitle>Admin Area</SectionTitle>
             <MenuItem to="/dashboard/admin/users" label="Kelola User" icon="👥" />
+            <MenuItem to="/dashboard/admin/organizations" label="Kelola Organisasi" icon="🏢" />
             <MenuItem to="/dashboard/admin/approvals" label="Persetujuan Org" icon="📝" />
           </>
         )}
