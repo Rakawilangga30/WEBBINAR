@@ -7,19 +7,16 @@ export default function BecomeCreator() {
     const [loading, setLoading] = useState(false);
     const [checkingStatus, setCheckingStatus] = useState(true);
     const [isOrganizer, setIsOrganizer] = useState(false);
+    const [isAffiliate, setIsAffiliate] = useState(false);
+    const [hasAffiliateSubmissions, setHasAffiliateSubmissions] = useState(false);
     const [profileIncomplete, setProfileIncomplete] = useState(false);
     const [missingFields, setMissingFields] = useState([]);
-    const [application, setApplication] = useState(null); // { status, org_name, submitted_at, review_note }
+    const [orgApplication, setOrgApplication] = useState(null);
+    const [selectedPath, setSelectedPath] = useState(null);
 
-    const [form, setForm] = useState({
-        org_name: "",
-        org_description: "",
-        org_category: "Teknologi",
-        org_email: "",
-        org_phone: "",
-        org_website: "",
-        reason: "",
-        social_media: ""
+    const [orgForm, setOrgForm] = useState({
+        org_name: "", org_description: "", org_category: "Teknologi",
+        org_email: "", org_phone: "", org_website: "", reason: "", social_media: ""
     });
 
     const categories = [
@@ -27,13 +24,10 @@ export default function BecomeCreator() {
         "Seni & Kreativitas", "Olahraga", "Musik", "Gaming", "Lifestyle", "Lainnya"
     ];
 
-    useEffect(() => {
-        checkStatus();
-    }, []);
+    useEffect(() => { checkStatus(); }, []);
 
     const checkStatus = async () => {
         try {
-            // 1. Check user profile
             const profileRes = await api.get("/user/profile");
             const user = profileRes.data.user;
 
@@ -42,15 +36,24 @@ export default function BecomeCreator() {
                 setCheckingStatus(false);
                 return;
             }
+            if (user.roles?.includes("AFFILIATE")) {
+                setIsAffiliate(true);
+                setCheckingStatus(false);
+                return;
+            }
 
-            // 2. Check profile completeness
+            // Check if has any affiliate submissions (even without AFFILIATE role)
+            try {
+                const affRes = await api.get("/affiliate/events");
+                if (affRes.data.events?.length > 0) {
+                    setHasAffiliateSubmissions(true);
+                }
+            } catch (e) { }
+
+            // Check profile completeness
             const missing = [];
             if (!user.name?.trim()) missing.push("Nama Lengkap");
             if (!user.email?.trim()) missing.push("Email");
-            if (!user.phone?.trim()) missing.push("Nomor Telepon");
-            if (!user.gender?.trim()) missing.push("Jenis Kelamin");
-            if (!user.birthdate?.trim()) missing.push("Tanggal Lahir");
-            if (!user.address?.trim()) missing.push("Alamat");
 
             if (missing.length > 0) {
                 setProfileIncomplete(true);
@@ -59,11 +62,12 @@ export default function BecomeCreator() {
                 return;
             }
 
-            // 3. Check existing application
-            const appRes = await api.get("/organization/my-application");
-            if (appRes.data.has_application) {
-                setApplication(appRes.data.application);
-            }
+            // Check existing org application
+            try {
+                const orgRes = await api.get("/organization/my-application");
+                if (orgRes.data.has_application) setOrgApplication(orgRes.data.application);
+            } catch (e) { }
+
         } catch (error) {
             console.error("Error checking status:", error);
         } finally {
@@ -71,22 +75,16 @@ export default function BecomeCreator() {
         }
     };
 
-    const handleChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
-    };
-
-    const handleSubmit = async (e) => {
+    const handleOrgSubmit = async (e) => {
         e.preventDefault();
-        if (!form.org_name || !form.reason) {
+        if (!orgForm.org_name || !orgForm.reason) {
             alert("Nama Organisasi dan Alasan wajib diisi!");
             return;
         }
-
         setLoading(true);
         try {
-            await api.post("/organization/apply", form);
-            alert("✅ Pengajuan berhasil dikirim! Admin akan meninjau pengajuan Anda.");
-            // Reload to show pending status
+            await api.post("/organization/apply", orgForm);
+            alert("✅ Pengajuan organisasi berhasil dikirim!");
             window.location.reload();
         } catch (error) {
             alert("❌ Gagal: " + (error.response?.data?.error || error.message));
@@ -95,16 +93,11 @@ export default function BecomeCreator() {
         }
     };
 
-    // Loading state
+    // Loading
     if (checkingStatus) {
         return (
             <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-                <div style={{
-                    width: "32px", height: "32px",
-                    border: "3px solid #e2e8f0", borderTopColor: "#3b82f6",
-                    borderRadius: "50%", animation: "spin 1s linear infinite",
-                    margin: "0 auto 12px"
-                }}></div>
+                <div style={{ width: "32px", height: "32px", border: "3px solid #e2e8f0", borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 12px" }}></div>
                 Memeriksa status...
             </div>
         );
@@ -116,12 +109,26 @@ export default function BecomeCreator() {
             <div style={cardStyle}>
                 <div style={{ fontSize: "4rem", marginBottom: "20px" }}>🎉</div>
                 <h2 style={{ margin: "0 0 12px 0", color: "#1e293b" }}>Anda Sudah Menjadi Creator!</h2>
+                <p style={{ color: "#64748b", marginBottom: "24px" }}>Anda sudah terdaftar sebagai Creator/Organizer.</p>
+                <Link to="/dashboard/org" style={buttonGreen}>🏢 Buka Dashboard Organisasi</Link>
+            </div>
+        );
+    }
+
+    // Already an affiliate or has submissions
+    if (isAffiliate || hasAffiliateSubmissions) {
+        return (
+            <div style={cardStyle}>
+                <div style={{ fontSize: "4rem", marginBottom: "20px" }}>🤝</div>
+                <h2 style={{ margin: "0 0 12px 0", color: "#1e293b" }}>
+                    {isAffiliate ? "Anda Sudah Menjadi Affiliate!" : "Anda Sudah Mengajukan Event!"}
+                </h2>
                 <p style={{ color: "#64748b", marginBottom: "24px" }}>
-                    Anda sudah terdaftar sebagai Creator/Organizer.
+                    {isAffiliate
+                        ? "Anda sudah terdaftar sebagai Affiliate Partner."
+                        : "Event Anda sedang dalam proses review admin."}
                 </p>
-                <Link to="/dashboard/org" style={buttonGreen}>
-                    🏢 Buka Dashboard Organisasi
-                </Link>
+                <Link to="/dashboard/affiliate" style={buttonGreen}>📊 Buka Dashboard Affiliate</Link>
             </div>
         );
     }
@@ -132,158 +139,133 @@ export default function BecomeCreator() {
             <div style={cardStyle}>
                 <div style={{ fontSize: "4rem", marginBottom: "20px" }}>⚠️</div>
                 <h2 style={{ margin: "0 0 12px 0", color: "#dc2626" }}>Profil Belum Lengkap</h2>
-                <p style={{ color: "#64748b", marginBottom: "20px" }}>
-                    Lengkapi profil Anda terlebih dahulu untuk mengajukan menjadi Creator.
-                </p>
+                <p style={{ color: "#64748b", marginBottom: "20px" }}>Lengkapi profil Anda terlebih dahulu.</p>
                 <div style={{ background: "#fef2f2", borderRadius: "10px", padding: "16px", marginBottom: "24px", border: "1px solid #fecaca", textAlign: "left" }}>
                     <p style={{ margin: "0 0 8px 0", fontWeight: "600", color: "#991b1b" }}>Data yang belum lengkap:</p>
                     <ul style={{ margin: 0, padding: "0 0 0 20px", color: "#dc2626" }}>
                         {missingFields.map(field => <li key={field}>{field}</li>)}
                     </ul>
                 </div>
-                <Link to="/dashboard/profile" style={buttonBlue}>
-                    👤 Lengkapi Profil Sekarang
-                </Link>
+                <Link to="/dashboard/profile" style={buttonBlue}>👤 Lengkapi Profil</Link>
             </div>
         );
     }
 
-    // Has pending application
-    if (application?.status === "PENDING") {
+    // Check pending org application
+    if (orgApplication?.status === "PENDING") {
         return (
             <div style={cardStyle}>
                 <div style={{ fontSize: "4rem", marginBottom: "20px" }}>⏳</div>
                 <h2 style={{ margin: "0 0 12px 0", color: "#d97706" }}>Menunggu Review</h2>
                 <p style={{ color: "#64748b", marginBottom: "20px" }}>
-                    Pengajuan Anda sedang dalam proses review oleh admin.
+                    Pengajuan Organisasi "{orgApplication.org_name}" sedang direview admin.
                 </p>
-                <div style={{ background: "#fffbeb", borderRadius: "10px", padding: "20px", border: "1px solid #fed7aa", textAlign: "left" }}>
-                    <div style={{ marginBottom: "12px" }}>
-                        <span style={{ color: "#92400e", fontWeight: "600" }}>Nama Organisasi:</span>
-                        <span style={{ marginLeft: "8px", color: "#1e293b" }}>{application.org_name}</span>
-                    </div>
-                    <div>
-                        <span style={{ color: "#92400e", fontWeight: "600" }}>Diajukan:</span>
-                        <span style={{ marginLeft: "8px", color: "#1e293b" }}>
-                            {new Date(application.submitted_at).toLocaleDateString("id-ID", {
-                                day: "numeric", month: "long", year: "numeric"
-                            })}
-                        </span>
-                    </div>
+                <p style={{ color: "#92400e", fontSize: "0.9rem" }}>
+                    💡 Ingin langsung mulai? Coba jalur Affiliate!
+                </p>
+                <div style={{ marginTop: "20px" }}>
+                    <button onClick={() => setSelectedPath('affiliate')} style={buttonGreen}>
+                        🤝 Jadi Affiliate Dulu
+                    </button>
                 </div>
-                <p style={{ marginTop: "20px", color: "#92400e", fontSize: "0.9rem" }}>
-                    💡 Admin biasanya memproses pengajuan dalam 1-3 hari kerja.
-                </p>
             </div>
         );
     }
 
-    // Has rejected application
-    if (application?.status === "REJECTED") {
+    // Show path selection or form
+    if (!selectedPath) {
         return (
             <div>
-                <div style={{ ...cardStyle, marginBottom: "24px", maxWidth: "100%" }}>
-                    <div style={{ fontSize: "3rem", marginBottom: "16px" }}>❌</div>
-                    <h2 style={{ margin: "0 0 12px 0", color: "#dc2626" }}>Pengajuan Ditolak</h2>
-                    <p style={{ color: "#64748b", marginBottom: "16px" }}>
-                        Pengajuan sebelumnya untuk "{application.org_name}" telah ditolak.
-                    </p>
-                    {application.review_note && (
-                        <div style={{ background: "#fef2f2", borderRadius: "10px", padding: "16px", border: "1px solid #fecaca", textAlign: "left" }}>
-                            <p style={{ margin: "0 0 4px 0", fontWeight: "600", color: "#991b1b" }}>Alasan Penolakan:</p>
-                            <p style={{ margin: 0, color: "#dc2626" }}>{application.review_note}</p>
-                        </div>
-                    )}
-                    <p style={{ marginTop: "16px", color: "#64748b", fontSize: "0.9rem" }}>
-                        Anda dapat mengajukan kembali dengan informasi yang diperbaiki.
-                    </p>
+                <div style={{ marginBottom: "32px", textAlign: "center" }}>
+                    <h2 style={{ margin: "0 0 8px 0", color: "#1e293b", fontSize: "1.75rem" }}>🚀 Jadi Creator</h2>
+                    <p style={{ margin: 0, color: "#64748b" }}>Pilih jalur yang sesuai dengan kebutuhan Anda</p>
                 </div>
-                {/* Show form below for re-apply */}
-                {renderForm()}
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
+                    {/* Organization Option */}
+                    <div style={optionCard} onClick={() => setSelectedPath('organization')}>
+                        <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🏢</div>
+                        <h3 style={{ margin: "0 0 12px 0", color: "#1e293b" }}>Jadi Organisasi</h3>
+                        <p style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: "16px" }}>
+                            Buat organisasi sendiri, kelola event, dan jual kursus dengan brand Anda.
+                        </p>
+                        <ul style={{ textAlign: "left", color: "#475569", fontSize: "0.85rem", paddingLeft: "20px", margin: "0 0 20px 0" }}>
+                            <li>Dashboard organisasi lengkap</li>
+                            <li>Kelola banyak event</li>
+                            <li>Brand & logo sendiri</li>
+                            <li>Perlu persetujuan admin dulu</li>
+                        </ul>
+                        <div style={{ ...buttonBlue, textAlign: "center" }}>Pilih Organisasi →</div>
+                    </div>
+
+                    {/* Affiliate Option */}
+                    <div style={optionCard} onClick={() => setSelectedPath('affiliate')}>
+                        <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🤝</div>
+                        <h3 style={{ margin: "0 0 12px 0", color: "#1e293b" }}>Jadi Affiliate</h3>
+                        <p style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: "16px" }}>
+                            Langsung ajukan event dan dapatkan 90% dari setiap penjualan.
+                        </p>
+                        <ul style={{ textAlign: "left", color: "#475569", fontSize: "0.85rem", paddingLeft: "20px", margin: "0 0 20px 0" }}>
+                            <li>Langsung submit event</li>
+                            <li>Tidak perlu kelola organisasi</li>
+                            <li>90% pendapatan per penjualan</li>
+                            <li>Event dipublikasi di Official</li>
+                        </ul>
+                        <div style={{ ...buttonGreen, textAlign: "center" }}>Pilih Affiliate →</div>
+                    </div>
+                </div>
             </div>
         );
     }
 
-    // No application - show form
-    return renderForm();
-
-    function renderForm() {
+    // Show Organization Form
+    if (selectedPath === 'organization') {
         return (
             <div>
-                {/* Header */}
+                <button onClick={() => setSelectedPath(null)} style={{ background: "none", border: "none", color: "#3b82f6", cursor: "pointer", marginBottom: "20px", fontSize: "0.9rem" }}>
+                    ← Kembali ke Pilihan
+                </button>
+
                 <div style={{ marginBottom: "24px" }}>
-                    <h2 style={{ margin: "0 0 4px 0", color: "#1e293b", fontSize: "1.5rem" }}>🚀 Jadi Creator</h2>
-                    <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
-                        Daftarkan organisasi Anda dan mulai buat event!
-                    </p>
+                    <h2 style={{ margin: "0 0 4px 0", color: "#1e293b", fontSize: "1.5rem" }}>🏢 Jadi Organisasi</h2>
+                    <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>Daftarkan organisasi Anda</p>
                 </div>
 
-                {/* Info Card */}
-                <div style={{ background: "linear-gradient(135deg, #eff6ff, #dbeafe)", borderRadius: "12px", padding: "20px 24px", marginBottom: "24px", border: "1px solid #bfdbfe" }}>
-                    <h4 style={{ margin: "0 0 8px 0", color: "#1e40af" }}>ℹ️ Apa itu Creator?</h4>
-                    <p style={{ margin: 0, color: "#3b82f6", fontSize: "0.9rem", lineHeight: "1.6" }}>
-                        Sebagai Creator, Anda dapat membuat event, webinar, kursus online, dan menjualnya kepada pengguna.
-                        Pengajuan akan ditinjau oleh admin dalam 1-3 hari kerja.
-                    </p>
-                </div>
-
-                {/* Form */}
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleOrgSubmit}>
                     <div style={{ background: "white", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)", padding: "24px", marginBottom: "24px" }}>
-                        <h3 style={{ margin: "0 0 20px 0", color: "#1e293b" }}>🏢 Informasi Organisasi</h3>
+                        <h3 style={{ margin: "0 0 20px 0", color: "#1e293b" }}>Informasi Organisasi</h3>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
                             <div>
                                 <label style={labelStyle}>Nama Organisasi *</label>
-                                <input type="text" name="org_name" value={form.org_name} onChange={handleChange} placeholder="Contoh: Tech Academy Indonesia" style={inputStyle} required />
+                                <input type="text" name="org_name" value={orgForm.org_name} onChange={(e) => setOrgForm({ ...orgForm, org_name: e.target.value })} placeholder="Tech Academy Indonesia" style={inputStyle} required />
                             </div>
                             <div>
                                 <label style={labelStyle}>Kategori</label>
-                                <select name="org_category" value={form.org_category} onChange={handleChange} style={inputStyle}>
+                                <select name="org_category" value={orgForm.org_category} onChange={(e) => setOrgForm({ ...orgForm, org_category: e.target.value })} style={inputStyle}>
                                     {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label style={labelStyle}>Email Organisasi</label>
-                                <input type="email" name="org_email" value={form.org_email} onChange={handleChange} placeholder="info@organisasi.com" style={inputStyle} />
+                                <input type="email" value={orgForm.org_email} onChange={(e) => setOrgForm({ ...orgForm, org_email: e.target.value })} placeholder="info@organisasi.com" style={inputStyle} />
                             </div>
                             <div>
                                 <label style={labelStyle}>Nomor Telepon</label>
-                                <input type="text" name="org_phone" value={form.org_phone} onChange={handleChange} placeholder="0812-xxxx-xxxx" style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Website</label>
-                                <input type="url" name="org_website" value={form.org_website} onChange={handleChange} placeholder="https://organisasi.com" style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Social Media</label>
-                                <input type="text" name="social_media" value={form.social_media} onChange={handleChange} placeholder="@instagram, @twitter" style={inputStyle} />
+                                <input type="text" value={orgForm.org_phone} onChange={(e) => setOrgForm({ ...orgForm, org_phone: e.target.value })} placeholder="0812-xxxx-xxxx" style={inputStyle} />
                             </div>
                             <div style={{ gridColumn: "1 / -1" }}>
                                 <label style={labelStyle}>Deskripsi Organisasi</label>
-                                <textarea name="org_description" value={form.org_description} onChange={handleChange} placeholder="Ceritakan tentang organisasi Anda..." style={{ ...inputStyle, minHeight: "100px", resize: "vertical" }} />
+                                <textarea value={orgForm.org_description} onChange={(e) => setOrgForm({ ...orgForm, org_description: e.target.value })} placeholder="Ceritakan tentang organisasi Anda..." style={{ ...inputStyle, minHeight: "100px", resize: "vertical" }} />
+                            </div>
+                            <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={labelStyle}>Alasan Pengajuan *</label>
+                                <textarea value={orgForm.reason} onChange={(e) => setOrgForm({ ...orgForm, reason: e.target.value })} placeholder="Mengapa Anda ingin menjadi creator?" style={{ ...inputStyle, minHeight: "100px", resize: "vertical" }} required />
                             </div>
                         </div>
                     </div>
-
-                    <div style={{ background: "white", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)", padding: "24px", marginBottom: "24px" }}>
-                        <h3 style={{ margin: "0 0 20px 0", color: "#1e293b" }}>📝 Alasan Pengajuan</h3>
-                        <div>
-                            <label style={labelStyle}>Mengapa Anda ingin menjadi Creator? *</label>
-                            <textarea name="reason" value={form.reason} onChange={handleChange} placeholder="Jelaskan alasan Anda ingin menjadi creator..." style={{ ...inputStyle, minHeight: "120px", resize: "vertical" }} required />
-                        </div>
-                    </div>
-
-                    {/* Submit Button */}
                     <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-                        <Link to="/dashboard" style={{ padding: "14px 28px", background: "white", color: "#374151", textDecoration: "none", borderRadius: "10px", fontWeight: "500", border: "1px solid #e2e8f0" }}>
-                            Batal
-                        </Link>
-                        <button type="submit" disabled={loading} style={{
-                            padding: "14px 32px",
-                            background: loading ? "#94a3b8" : "linear-gradient(135deg, #22c55e, #16a34a)",
-                            color: "white", border: "none", borderRadius: "10px",
-                            cursor: loading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "1rem"
-                        }}>
+                        <button type="button" onClick={() => setSelectedPath(null)} style={{ padding: "14px 28px", background: "white", color: "#374151", border: "1px solid #e2e8f0", borderRadius: "10px", cursor: "pointer" }}>Batal</button>
+                        <button type="submit" disabled={loading} style={{ padding: "14px 32px", background: loading ? "#94a3b8" : "linear-gradient(135deg, #3b82f6, #2563eb)", color: "white", border: "none", borderRadius: "10px", cursor: loading ? "not-allowed" : "pointer", fontWeight: "600" }}>
                             {loading ? "Mengirim..." : "🚀 Kirim Pengajuan"}
                         </button>
                     </div>
@@ -291,12 +273,25 @@ export default function BecomeCreator() {
             </div>
         );
     }
+
+    // Affiliate - Redirect to submit event page
+    if (selectedPath === 'affiliate') {
+        navigate('/dashboard/affiliate/submit');
+        return null;
+    }
 }
 
 const cardStyle = {
     background: "white", borderRadius: "16px",
     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
     padding: "48px", textAlign: "center", maxWidth: "500px", margin: "40px auto"
+};
+
+const optionCard = {
+    background: "white", borderRadius: "16px",
+    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+    padding: "32px", textAlign: "center", cursor: "pointer",
+    transition: "all 0.3s ease", border: "2px solid transparent"
 };
 
 const buttonGreen = {

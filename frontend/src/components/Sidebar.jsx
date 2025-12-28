@@ -93,9 +93,19 @@ export default function Sidebar() {
         <MenuItem to="/dashboard/profile" label="Profil Saya" icon="👤" />
         <MenuItem to="/dashboard/my-courses" label="Kursus Saya" icon="📚" />
 
-        {/* Jadi Creator - Only show for regular users (not ORGANIZER or ADMIN) */}
-        {!roles.includes("ORGANIZER") && !roles.includes("ADMIN") && (
+        {/* Jadi Creator - Only show for regular users (not ORGANIZER, AFFILIATE, or ADMIN) */}
+        {!roles.includes("ORGANIZER") && !roles.includes("AFFILIATE") && !roles.includes("ADMIN") && (
           <MenuItem to="/dashboard/become-creator" label="Jadi Creator" icon="🚀" />
+        )}
+
+        {/* AFFILIATE Menu */}
+        {roles.includes("AFFILIATE") && (
+          <>
+            <SectionTitle>Affiliate Area</SectionTitle>
+            <MenuItem to="/dashboard/affiliate" label="Dashboard" icon="📊" />
+            <MenuItem to="/dashboard/affiliate/submit" label="Ajukan Event" icon="➕" />
+            <MenuItem to="/dashboard/affiliate/events" label="Event Saya" icon="📦" />
+          </>
         )}
 
         {/* ORGANIZER Menu */}
@@ -114,6 +124,8 @@ export default function Sidebar() {
             <MenuItem to="/dashboard/admin/users" label="Kelola User" icon="👥" />
             <MenuItem to="/dashboard/admin/organizations" label="Kelola Organisasi" icon="🏢" />
             <MenuItem to="/dashboard/admin/approvals" label="Persetujuan Org" icon="📝" />
+            <MenuItem to="/dashboard/admin/affiliates" label="Pengajuan Affiliate" icon="🤝" />
+            <MenuItem to="/dashboard/admin/official-org" label="Official Org" icon="🏛️" />
           </>
         )}
       </div>

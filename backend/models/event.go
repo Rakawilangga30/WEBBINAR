@@ -3,16 +3,17 @@ package models
 import "time"
 
 type Event struct {
-	ID             int64      `db:"id" json:"id"`
-	OrganizationID int64      `db:"organization_id" json:"organization_id"`
-	Title          string     `db:"title" json:"title"`
-	Description    string     `db:"description" json:"description"`
-	Category       string     `db:"category" json:"category"`
-	ThumbnailURL   *string    `db:"thumbnail_url" json:"thumbnail_url"`
-	PublishStatus  string     `db:"publish_status" json:"publish_status"`
-	PublishAt      *time.Time `db:"publish_at" json:"publish_at"`
-	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
+	ID                    int64      `db:"id" json:"id"`
+	OrganizationID        int64      `db:"organization_id" json:"organization_id"`
+	Title                 string     `db:"title" json:"title"`
+	Description           string     `db:"description" json:"description"`
+	Category              string     `db:"category" json:"category"`
+	ThumbnailURL          *string    `db:"thumbnail_url" json:"thumbnail_url"`
+	PublishStatus         string     `db:"publish_status" json:"publish_status"`
+	PublishAt             *time.Time `db:"publish_at" json:"publish_at"`
+	AffiliateSubmissionID *int64     `db:"affiliate_submission_id" json:"affiliate_submission_id"`
+	CreatedAt             time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 type Session struct {

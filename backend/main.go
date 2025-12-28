@@ -25,7 +25,7 @@ func startAutoPublishJob() {
 				  AND publish_at IS NOT NULL
 				  AND publish_at <= NOW()
 			`)
-			
+
 			// Tambahkan update untuk sessions juga (sesuai request Anda sebelumnya)
 			res2, err2 := config.DB.Exec(`
 					UPDATE sessions
@@ -58,10 +58,11 @@ func main() {
 
 	config.ConnectDB()
 	config.SetupCORS(r)
+	config.InitMidtrans() // Initialize Midtrans
 
 	// Jalankan cron auto publish
 	startAutoPublishJob()
-	
+
 	// --- PENTING: Serve Static Files (Untuk Thumbnail) ---
 	// Ini agar URL seperti http://localhost:8080/uploads/events/xxx.jpg bisa dibuka
 	r.Static("/uploads", "./uploads")
@@ -72,7 +73,7 @@ func main() {
 	// Middleware untuk blok akses langsung ke folder static (Opsional, tapi hati-hati bentrok dengan r.Static)
 	// Jika r.Static di atas sudah ada, middleware ini mungkin perlu disesuaikan agar tidak memblokir /uploads/events/
 	// Untuk keamanan materi berbayar (video/pdf), tetap gunakan logika stream controller.
-	// r.Use(middlewares.BlockStaticAccess()) 
+	// r.Use(middlewares.BlockStaticAccess())
 
 	// Start server
 	r.Run(":8080")
