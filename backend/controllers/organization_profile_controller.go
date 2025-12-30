@@ -32,6 +32,9 @@ func GetOrganizationProfile(c *gin.Context) {
 		}
 	}
 
+	// Debug: Print the user_id we're searching for
+	fmt.Printf("DEBUG GetOrganizationProfile: Searching for owner_user_id=%d\n", userID)
+
 	var org models.Organization
 
 	err := config.DB.Get(&org, `
@@ -39,10 +42,17 @@ func GetOrganizationProfile(c *gin.Context) {
 	`, userID)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Organization profile not found"})
+		// Log for debugging
+		fmt.Printf("DEBUG: No organization found for user_id=%d, error=%v\n", userID, err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "Organization profile not found",
+			"user_id": userID,
+		})
 		return
 	}
 
+	// Debug: Success
+	fmt.Printf("DEBUG: Found organization ID=%d, name='%s' for user_id=%d\n", org.ID, org.Name, userID)
 	c.JSON(http.StatusOK, gin.H{"organization": org})
 }
 

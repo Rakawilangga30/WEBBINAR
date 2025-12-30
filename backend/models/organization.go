@@ -18,5 +18,6 @@ type Organization struct {
 	SocialLink string `db:"social_link" json:"social_link"`
 	Address    string `db:"address" json:"address"`
 
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	IsOfficial bool      `db:"is_official" json:"is_official"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }

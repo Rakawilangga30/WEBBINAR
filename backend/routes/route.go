@@ -54,6 +54,12 @@ func RegisterRoutes(r *gin.Engine) {
 		userGroup.PUT("/notifications/read-all", controllers.MarkAllNotificationsAsRead)
 
 		userGroup.POST("/payment/token", controllers.GetPaymentToken)
+
+		// Quiz & Certificate for users
+		userGroup.GET("/events/:eventID/progress", controllers.GetUserEventProgress)
+		userGroup.GET("/sessions/:sessionID/quiz", controllers.GetQuizForUser)
+		userGroup.POST("/sessions/:sessionID/quiz/submit", controllers.SubmitQuiz)
+		userGroup.GET("/events/:eventID/certificate", controllers.GetUserCertificate)
 	}
 
 	// ==========================================
@@ -124,6 +130,13 @@ func RegisterRoutes(r *gin.Engine) {
 		org.DELETE("/sessions/:sessionID/files/:mediaID", controllers.DeleteSessionFile)
 
 		org.GET("/sessions/:sessionID/media", controllers.GetSessionMedia)
+
+		// Quiz & Certificate
+		org.GET("/events/:eventID/certificate-settings", controllers.GetCertificateSettings)
+		org.PUT("/events/:eventID/certificate-settings", controllers.UpdateCertificateSettings)
+		org.GET("/sessions/:sessionID/quiz", controllers.GetSessionQuiz)
+		org.POST("/sessions/:sessionID/quiz", controllers.SaveSessionQuiz)
+		org.DELETE("/sessions/:sessionID/quiz", controllers.DeleteSessionQuiz)
 	}
 
 	// ==========================================
@@ -164,15 +177,43 @@ func RegisterRoutes(r *gin.Engine) {
 		admin.GET("/official-org", controllers.GetOfficialOrganization)
 		admin.PUT("/official-org", controllers.UpdateOfficialOrganization)
 		admin.POST("/official-org/logo", controllers.UploadOfficialOrgLogo)
+
+		// Official Org - Events CRUD
 		admin.GET("/official-org/events", controllers.GetOfficialOrgEvents)
+		admin.POST("/official-org/events", controllers.CreateOfficialOrgEvent)
 		admin.GET("/official-org/events/:eventId", controllers.GetOfficialOrgEventDetail)
 		admin.PUT("/official-org/events/:eventId", controllers.UpdateOfficialOrgEvent)
-		admin.POST("/official-org/events/:eventId/thumbnail", controllers.UploadOfficialOrgEventThumbnail)
 		admin.DELETE("/official-org/events/:eventId", controllers.DeleteOfficialOrgEvent)
+		admin.POST("/official-org/events/:eventId/thumbnail", controllers.UploadOfficialOrgEventThumbnail)
+
+		// Official Org - Event Publish/Unpublish/Schedule
+		admin.PUT("/official-org/events/:eventId/publish", controllers.PublishOfficialOrgEvent)
+		admin.PUT("/official-org/events/:eventId/unpublish", controllers.UnpublishOfficialOrgEvent)
+		admin.PUT("/official-org/events/:eventId/schedule", controllers.ScheduleOfficialOrgEvent)
+
+		// Official Org - Sessions CRUD
+		admin.POST("/official-org/events/:eventId/sessions", controllers.CreateOfficialOrgSession)
 		admin.PUT("/official-org/sessions/:sessionId", controllers.UpdateOfficialOrgSession)
+		admin.DELETE("/official-org/sessions/:sessionId", controllers.DeleteOfficialOrgSession)
+
+		// Official Org - Session Publish/Unpublish/Schedule
+		admin.PUT("/official-org/sessions/:sessionId/publish", controllers.PublishOfficialOrgSession)
+		admin.PUT("/official-org/sessions/:sessionId/unpublish", controllers.UnpublishOfficialOrgSession)
+		admin.PUT("/official-org/sessions/:sessionId/schedule", controllers.ScheduleOfficialOrgSession)
+
+		// Official Org - Session Materials
+		admin.POST("/official-org/sessions/:sessionId/videos", controllers.UploadOfficialOrgSessionVideo)
+		admin.POST("/official-org/sessions/:sessionId/files", controllers.UploadOfficialOrgSessionFile)
 		admin.PUT("/official-org/videos/:videoId", controllers.UpdateOfficialOrgVideo)
 		admin.DELETE("/official-org/videos/:videoId", controllers.DeleteOfficialOrgVideo)
 		admin.PUT("/official-org/files/:fileId", controllers.UpdateOfficialOrgFile)
 		admin.DELETE("/official-org/files/:fileId", controllers.DeleteOfficialOrgFile)
+
+		// Official Org - Quiz & Certificate
+		admin.GET("/official-org/events/:eventId/certificate-settings", controllers.GetOfficialOrgCertificateSettings)
+		admin.PUT("/official-org/events/:eventId/certificate-settings", controllers.UpdateOfficialOrgCertificateSettings)
+		admin.GET("/official-org/sessions/:sessionId/quiz", controllers.GetOfficialOrgSessionQuiz)
+		admin.POST("/official-org/sessions/:sessionId/quiz", controllers.SaveOfficialOrgSessionQuiz)
+		admin.DELETE("/official-org/sessions/:sessionId/quiz", controllers.DeleteOfficialOrgSessionQuiz)
 	}
 }

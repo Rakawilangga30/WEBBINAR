@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../api";
+import QuizTaker from "../components/QuizTaker";
+import CertificateViewer from "../components/CertificateViewer";
 
 export default function EventDetail() {
     const { id } = useParams();
@@ -15,8 +17,14 @@ export default function EventDetail() {
     const [activeVideoUrl, setActiveVideoUrl] = useState(null);
     const [expandedMediaId, setExpandedMediaId] = useState(null);
 
+    // Quiz & Certificate
+    const [quizSessionId, setQuizSessionId] = useState(null);
+    const [showCertificate, setShowCertificate] = useState(false);
+    const [quizProgress, setQuizProgress] = useState(null);
+
     useEffect(() => {
         fetchEventDetail();
+        fetchQuizProgress();
     }, [id]);
 
     const fetchEventDetail = async () => {
@@ -43,6 +51,22 @@ export default function EventDetail() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchQuizProgress = async () => {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        try {
+            const res = await api.get(`/user/events/${id}/progress`);
+            setQuizProgress(res.data);
+        } catch (err) {
+            console.error("Gagal ambil progress quiz:", err);
+        }
+    };
+
+    const getSessionQuiz = (sessionId) => {
+        if (!quizProgress?.progress) return null;
+        return quizProgress.progress.find(p => p.session_id === sessionId);
     };
 
     const checkPurchaseStatus = async (currentSessions) => {
@@ -245,6 +269,77 @@ export default function EventDetail() {
                 </div>
             </div>
 
+            {/* Progress & Certificate Summary */}
+            {localStorage.getItem("token") && quizProgress?.has_quizzes && (
+                <div style={{
+                    padding: '20px',
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                    borderRadius: '12px',
+                    color: 'white',
+                    marginBottom: '24px'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <div>
+                            <h3 style={{ margin: '0 0 4px 0' }}>📊 Progress Sertifikat</h3>
+                            <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>
+                                Selesaikan semua kuis untuk mendapatkan sertifikat
+                            </p>
+                        </div>
+                        {quizProgress.total_percent >= (quizProgress.min_score_required || 80) && (
+                            <button
+                                onClick={() => setShowCertificate(true)}
+                                style={{
+                                    padding: '10px 20px',
+                                    background: '#10b981',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                🎓 Lihat Sertifikat
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div style={{ marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
+                            <span>Skor Total</span>
+                            <span style={{ fontWeight: 'bold' }}>{(quizProgress.total_percent || 0).toFixed(1)}%</span>
+                        </div>
+                        <div style={{ height: '12px', background: 'rgba(255,255,255,0.2)', borderRadius: '6px', overflow: 'hidden' }}>
+                            <div style={{
+                                width: `${Math.min(100, quizProgress.total_percent || 0)}%`,
+                                height: '100%',
+                                background: quizProgress.total_percent >= (quizProgress.min_score_required || 80) ? '#10b981' : quizProgress.total_percent > 50 ? '#f59e0b' : '#ef4444',
+                                transition: 'width 0.5s, background 0.3s'
+                            }} />
+                        </div>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '4px' }}>
+                            Minimal {quizProgress.min_score_required || 80}% untuk mendapatkan sertifikat
+                        </div>
+                    </div>
+
+                    {/* Status Message */}
+                    <div style={{
+                        padding: '12px',
+                        background: quizProgress.total_percent >= (quizProgress.min_score_required || 80) ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        textAlign: 'center'
+                    }}>
+                        {quizProgress.total_percent >= (quizProgress.min_score_required || 80) ? (
+                            <span>🎉 Selamat! Anda telah lulus dan mendapatkan sertifikat!</span>
+                        ) : quizProgress.progress?.every(p => p.completed) ? (
+                            <span>📚 Skor Anda belum mencukupi. Coba kuis lagi untuk meningkatkan skor.</span>
+                        ) : (
+                            <span>📝 Selesaikan semua kuis untuk melihat skor total Anda.</span>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Main Content */}
             <div style={{
                 display: "grid",
@@ -320,6 +415,63 @@ export default function EventDetail() {
                                         {event.publish_status === 'SCHEDULED' ? "🔒 Belum Dibuka" : "🛒 Beli Sesi Ini"}
                                     </button>
                                 )}
+
+                                {/* Quiz Button - Show in session if purchased and has quiz */}
+                                {s.isPurchased && localStorage.getItem("token") && (() => {
+                                    const sessionQuiz = getSessionQuiz(s.id);
+                                    if (!sessionQuiz) return null;
+                                    return (
+                                        <div style={{
+                                            marginTop: '12px',
+                                            padding: '12px',
+                                            background: sessionQuiz.completed ? '#f0fdf4' : '#eff6ff',
+                                            border: sessionQuiz.completed ? '1px solid #86efac' : '1px solid #93c5fd',
+                                            borderRadius: '8px'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ fontWeight: '500', fontSize: '0.9rem', color: '#1e293b' }}>
+                                                        📝 Kuis Sesi
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                                        Bobot: {sessionQuiz.weight?.toFixed(1)}%
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    {sessionQuiz.completed && (
+                                                        <span style={{
+                                                            padding: '4px 10px',
+                                                            borderRadius: '16px',
+                                                            background: sessionQuiz.passed ? '#10b981' : '#f59e0b',
+                                                            color: 'white',
+                                                            fontSize: '0.8rem',
+                                                            fontWeight: '500'
+                                                        }}>
+                                                            {sessionQuiz.score?.toFixed(0)}%
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setQuizSessionId(s.id)}
+                                                        style={{
+                                                            padding: '6px 14px',
+                                                            background: sessionQuiz.completed
+                                                                ? 'linear-gradient(135deg, #6366f1, #4f46e5)'
+                                                                : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                            fontWeight: '500',
+                                                            fontSize: '0.8rem'
+                                                        }}
+                                                    >
+                                                        {sessionQuiz.completed ? '🔄 Ulang Kuis' : '📝 Mulai Kuis'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         ))}
                     </div>
@@ -484,6 +636,23 @@ export default function EventDetail() {
                     )}
                 </div>
             </div>
+
+            {/* Quiz Taker Modal */}
+            {quizSessionId && (
+                <QuizTaker
+                    sessionId={quizSessionId}
+                    onClose={() => setQuizSessionId(null)}
+                    onComplete={() => { setQuizSessionId(null); fetchQuizProgress(); }}
+                />
+            )}
+
+            {/* Certificate Viewer Modal */}
+            {showCertificate && (
+                <CertificateViewer
+                    eventId={id}
+                    onClose={() => setShowCertificate(false)}
+                />
+            )}
         </div>
     );
 }

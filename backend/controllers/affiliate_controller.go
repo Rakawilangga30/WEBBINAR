@@ -323,11 +323,11 @@ func SubmitAffiliateEvent(c *gin.Context) {
 	// ============================================
 	result, err := config.DB.Exec(`
 		INSERT INTO affiliate_submissions 
-		(user_id, full_name, email, phone, event_title, event_description, event_price, 
+		(user_id, full_name, email, phone, event_title, event_description, event_price, event_category,
 		 poster_url, video_url, video_title, file_url, file_title, 
 		 bank_name, bank_account_number, bank_account_holder, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-	`, userID, user.Name, user.Email, phone, eventTitle, eventDescription, eventPrice,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+	`, userID, user.Name, user.Email, phone, eventTitle, eventDescription, eventPrice, eventCategory,
 		posterURL, firstVideoURL, firstVideoTitle, firstFileURL, firstFileTitle,
 		bankName, bankAccountNumber, bankAccountHolder)
 

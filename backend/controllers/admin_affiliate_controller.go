@@ -259,6 +259,7 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 		EventTitle       string  `db:"event_title"`
 		EventDescription *string `db:"event_description"`
 		EventPrice       int64   `db:"event_price"`
+		EventCategory    string  `db:"event_category"`
 		PosterURL        *string `db:"poster_url"`
 		VideoURL         *string `db:"video_url"`
 		VideoTitle       *string `db:"video_title"`
@@ -268,7 +269,8 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 	}
 	err := config.DB.Get(&submission, `
 		SELECT id, user_id, full_name, email, event_title, event_description, 
-		       event_price, poster_url, video_url, video_title, file_url, file_title, status 
+		       event_price, COALESCE(event_category, 'Teknologi') as event_category,
+		       poster_url, video_url, video_title, file_url, file_title, status 
 		FROM affiliate_submissions 
 		WHERE id = ?
 	`, submissionID)
@@ -286,7 +288,7 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 	if input.Action == "APPROVE" {
 		// Get Official organization
 		var officialOrgID int64
-		err := config.DB.Get(&officialOrgID, `SELECT id FROM organizations WHERE name = 'Official' LIMIT 1`)
+		err := config.DB.Get(&officialOrgID, `SELECT id FROM organizations WHERE is_official = 1 LIMIT 1`)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Organisasi Official belum dibuat"})
 			return
@@ -301,8 +303,8 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 		eventResult, err := config.DB.Exec(`
 			INSERT INTO events (organization_id, title, description, category, thumbnail_url, 
 			                    publish_status, affiliate_submission_id)
-			VALUES (?, ?, ?, 'Affiliate', ?, 'PUBLISHED', ?)
-		`, officialOrgID, submission.EventTitle, description, submission.PosterURL, submission.ID)
+			VALUES (?, ?, ?, ?, ?, 'PUBLISHED', ?)
+		`, officialOrgID, submission.EventTitle, description, submission.EventCategory, submission.PosterURL, submission.ID)
 
 		if err != nil {
 			fmt.Printf("[APPROVE] Error creating event: %v\n", err)
@@ -619,7 +621,7 @@ func GetOfficialOrganization(c *gin.Context) {
 		SELECT o.id, o.name, o.description, o.category, o.email, o.logo_url,
 		       (SELECT COUNT(*) FROM events WHERE organization_id = o.id) as total_events
 		FROM organizations o
-		WHERE o.name = 'Official'
+		WHERE o.is_official = 1
 		LIMIT 1
 	`)
 
@@ -633,7 +635,16 @@ func GetOfficialOrganization(c *gin.Context) {
 
 // UpdateOfficialOrganization - Update Official org by admin
 func UpdateOfficialOrganization(c *gin.Context) {
+	// First get the current org ID
+	var orgID int64
+	err := config.DB.Get(&orgID, `SELECT id FROM organizations WHERE is_official = 1 LIMIT 1`)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Organisasi Official tidak ditemukan"})
+		return
+	}
+
 	var input struct {
+		Name        string `json:"name"`
 		Description string `json:"description"`
 		Category    string `json:"category"`
 		Email       string `json:"email"`
@@ -643,18 +654,23 @@ func UpdateOfficialOrganization(c *gin.Context) {
 		return
 	}
 
-	_, err := config.DB.Exec(`
+	// If name is empty, keep the old name
+	if input.Name == "" {
+		input.Name = "Official"
+	}
+
+	_, err = config.DB.Exec(`
 		UPDATE organizations 
-		SET description = ?, category = ?, email = ?
-		WHERE name = 'Official'
-	`, input.Description, input.Category, input.Email)
+		SET name = ?, description = ?, category = ?, email = ?
+		WHERE id = ?
+	`, input.Name, input.Description, input.Category, input.Email, orgID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Organisasi Official berhasil diupdate"})
+	c.JSON(http.StatusOK, gin.H{"message": "Organisasi berhasil diupdate"})
 }
 
 // UploadOfficialOrgLogo - Upload logo for Official org
@@ -674,7 +690,7 @@ func UploadOfficialOrgLogo(c *gin.Context) {
 		return
 	}
 
-	config.DB.Exec(`UPDATE organizations SET logo_url = ? WHERE name = 'Official'`, path)
+	config.DB.Exec(`UPDATE organizations SET logo_url = ? WHERE is_official = 1`, path)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logo berhasil diupload", "logo_url": path})
 }
@@ -683,7 +699,7 @@ func UploadOfficialOrgLogo(c *gin.Context) {
 func GetOfficialOrgEvents(c *gin.Context) {
 	// Get Official org ID first
 	var officialOrgID int64
-	err := config.DB.Get(&officialOrgID, `SELECT id FROM organizations WHERE name = 'Official' LIMIT 1`)
+	err := config.DB.Get(&officialOrgID, `SELECT id FROM organizations WHERE is_official = 1 LIMIT 1`)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Organisasi Official belum dibuat"})
 		return
@@ -967,4 +983,467 @@ func DeleteOfficialOrgFile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "File berhasil dihapus"})
+}
+
+// ========================================================
+// OFFICIAL ORGANIZATION - CREATE EVENT & SESSION
+// ========================================================
+
+// CreateOfficialOrgEvent - Create new event under Official org
+func CreateOfficialOrgEvent(c *gin.Context) {
+	var input struct {
+		Title       string `json:"title" binding:"required"`
+		Description string `json:"description"`
+		Category    string `json:"category"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Judul wajib diisi"})
+		return
+	}
+
+	// Get Official org ID
+	var officialOrgID int64
+	err := config.DB.Get(&officialOrgID, `SELECT id FROM organizations WHERE is_official = 1 LIMIT 1`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Organisasi Official belum dibuat"})
+		return
+	}
+
+	// Default category
+	if input.Category == "" {
+		input.Category = "Teknologi"
+	}
+
+	result, err := config.DB.Exec(`
+		INSERT INTO events (organization_id, title, description, category, publish_status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'DRAFT', NOW(), NOW())
+	`, officialOrgID, input.Title, input.Description, input.Category)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat event"})
+		return
+	}
+
+	eventID, _ := result.LastInsertId()
+	c.JSON(http.StatusCreated, gin.H{"message": "Event berhasil dibuat", "event_id": eventID})
+}
+
+// CreateOfficialOrgSession - Create new session under Official org event
+func CreateOfficialOrgSession(c *gin.Context) {
+	eventID := c.Param("eventId")
+
+	var input struct {
+		Title       string `json:"title" binding:"required"`
+		Description string `json:"description"`
+		Price       int64  `json:"price"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Judul wajib diisi"})
+		return
+	}
+
+	// Get max order index
+	var maxOrder int
+	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM sessions WHERE event_id = ?", eventID)
+
+	result, err := config.DB.Exec(`
+		INSERT INTO sessions (event_id, title, description, price, order_index, publish_status, created_at)
+		VALUES (?, ?, ?, ?, ?, 'DRAFT', NOW())
+	`, eventID, input.Title, input.Description, input.Price, maxOrder+1)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat session"})
+		return
+	}
+
+	sessionID, _ := result.LastInsertId()
+	c.JSON(http.StatusCreated, gin.H{"message": "Session berhasil dibuat", "session_id": sessionID})
+}
+
+// DeleteOfficialOrgSession - Delete a session
+func DeleteOfficialOrgSession(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	// Delete videos and files first
+	config.DB.Exec(`DELETE FROM session_videos WHERE session_id = ?`, sessionID)
+	config.DB.Exec(`DELETE FROM session_files WHERE session_id = ?`, sessionID)
+	config.DB.Exec(`DELETE FROM purchases WHERE session_id = ?`, sessionID)
+
+	_, err := config.DB.Exec(`DELETE FROM sessions WHERE id = ?`, sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus session"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Session berhasil dihapus"})
+}
+
+// ========================================================
+// OFFICIAL ORGANIZATION - PUBLISH/UNPUBLISH/SCHEDULE
+// ========================================================
+
+// PublishOfficialOrgEvent - Publish event
+func PublishOfficialOrgEvent(c *gin.Context) {
+	eventID := c.Param("eventId")
+
+	_, err := config.DB.Exec(`UPDATE events SET publish_status = 'PUBLISHED', publish_at = NULL WHERE id = ?`, eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal publish event"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Event berhasil dipublish", "status": "PUBLISHED"})
+}
+
+// UnpublishOfficialOrgEvent - Unpublish event to draft
+func UnpublishOfficialOrgEvent(c *gin.Context) {
+	eventID := c.Param("eventId")
+
+	_, err := config.DB.Exec(`UPDATE events SET publish_status = 'DRAFT', publish_at = NULL WHERE id = ?`, eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal unpublish event"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Event berhasil di-draft", "status": "DRAFT"})
+}
+
+// ScheduleOfficialOrgEvent - Schedule event publish
+func ScheduleOfficialOrgEvent(c *gin.Context) {
+	eventID := c.Param("eventId")
+
+	var input struct {
+		PublishAt string `json:"publish_at" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tanggal publish wajib diisi"})
+		return
+	}
+
+	// Parse datetime
+	parsedTime, err := time.Parse("2006-01-02T15:04", input.PublishAt)
+	if err != nil {
+		parsedTime, err = time.Parse(time.RFC3339, input.PublishAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
+			return
+		}
+	}
+
+	sqlTimeStr := parsedTime.Format("2006-01-02 15:04:05")
+	_, err = config.DB.Exec(`UPDATE events SET publish_status = 'SCHEDULED', publish_at = ? WHERE id = ?`, sqlTimeStr, eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal schedule event"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Event berhasil dijadwalkan", "status": "SCHEDULED", "publish_at": input.PublishAt})
+}
+
+// PublishOfficialOrgSession - Publish session
+func PublishOfficialOrgSession(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	_, err := config.DB.Exec(`UPDATE sessions SET publish_status = 'PUBLISHED', publish_at = NULL WHERE id = ?`, sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal publish session"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Session berhasil dipublish", "status": "PUBLISHED"})
+}
+
+// UnpublishOfficialOrgSession - Unpublish session to draft
+func UnpublishOfficialOrgSession(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	_, err := config.DB.Exec(`UPDATE sessions SET publish_status = 'DRAFT', publish_at = NULL WHERE id = ?`, sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal unpublish session"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Session berhasil di-draft", "status": "DRAFT"})
+}
+
+// ScheduleOfficialOrgSession - Schedule session publish
+func ScheduleOfficialOrgSession(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	var input struct {
+		PublishAt string `json:"publish_at" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tanggal publish wajib diisi"})
+		return
+	}
+
+	parsedTime, err := time.Parse("2006-01-02T15:04", input.PublishAt)
+	if err != nil {
+		parsedTime, err = time.Parse(time.RFC3339, input.PublishAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
+			return
+		}
+	}
+
+	sqlTimeStr := parsedTime.Format("2006-01-02 15:04:05")
+	_, err = config.DB.Exec(`UPDATE sessions SET publish_status = 'SCHEDULED', publish_at = ? WHERE id = ?`, sqlTimeStr, sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal schedule session"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Session berhasil dijadwalkan", "status": "SCHEDULED", "publish_at": input.PublishAt})
+}
+
+// ========================================================
+// OFFICIAL ORGANIZATION - UPLOAD VIDEO & FILE
+// ========================================================
+
+// UploadOfficialOrgSessionVideo - Upload video to session
+func UploadOfficialOrgSessionVideo(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	title := c.PostForm("title")
+	if title == "" {
+		title = "Video Materi"
+	}
+	description := c.PostForm("description")
+
+	file, err := c.FormFile("video")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File video wajib diupload"})
+		return
+	}
+
+	os.MkdirAll("uploads/videos", os.ModePerm)
+	filename := fmt.Sprintf("official_%d_%s%s", time.Now().UnixNano(), sessionID, filepath.Ext(file.Filename))
+	filePath := filepath.Join("uploads/videos", filename)
+
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan video"})
+		return
+	}
+
+	// Get max order index
+	var maxOrder int
+	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM session_videos WHERE session_id = ?", sessionID)
+
+	result, err := config.DB.Exec(`
+		INSERT INTO session_videos (session_id, title, description, video_url, order_index)
+		VALUES (?, ?, ?, ?, ?)
+	`, sessionID, title, description, filePath, maxOrder+1)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan ke database"})
+		return
+	}
+
+	videoID, _ := result.LastInsertId()
+	c.JSON(http.StatusCreated, gin.H{"message": "Video berhasil diupload", "video_id": videoID, "video_url": filePath})
+}
+
+// UploadOfficialOrgSessionFile - Upload file/module to session
+func UploadOfficialOrgSessionFile(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	title := c.PostForm("title")
+	if title == "" {
+		title = "Modul Materi"
+	}
+	description := c.PostForm("description")
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File wajib diupload"})
+		return
+	}
+
+	os.MkdirAll("uploads/files", os.ModePerm)
+	filename := fmt.Sprintf("official_%d_%s%s", time.Now().UnixNano(), sessionID, filepath.Ext(file.Filename))
+	filePath := filepath.Join("uploads/files", filename)
+
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file"})
+		return
+	}
+
+	// Get max order index
+	var maxOrder int
+	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM session_files WHERE session_id = ?", sessionID)
+
+	result, err := config.DB.Exec(`
+		INSERT INTO session_files (session_id, title, description, file_url, order_index)
+		VALUES (?, ?, ?, ?, ?)
+	`, sessionID, title, description, filePath, maxOrder+1)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan ke database"})
+		return
+	}
+
+	fileID, _ := result.LastInsertId()
+	c.JSON(http.StatusCreated, gin.H{"message": "File berhasil diupload", "file_id": fileID, "file_url": filePath})
+}
+
+// ========================================================
+// OFFICIAL ORGANIZATION - QUIZ & CERTIFICATE
+// ========================================================
+
+// GetOfficialOrgCertificateSettings - Get certificate settings for Official org event
+func GetOfficialOrgCertificateSettings(c *gin.Context) {
+	eventID := c.Param("eventId")
+
+	var settings struct {
+		ID              int64   `db:"id" json:"id"`
+		EventID         int64   `db:"event_id" json:"event_id"`
+		IsEnabled       bool    `db:"is_enabled" json:"is_enabled"`
+		MinScorePercent int     `db:"min_score_percent" json:"min_score_percent"`
+		CertTitle       *string `db:"certificate_title" json:"certificate_title"`
+	}
+
+	err := config.DB.Get(&settings, `
+		SELECT id, event_id, is_enabled, min_score_percent, certificate_title
+		FROM event_certificates WHERE event_id = ?
+	`, eventID)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"settings": gin.H{
+				"event_id":          eventID,
+				"is_enabled":        false,
+				"min_score_percent": 80,
+				"certificate_title": nil,
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"settings": settings})
+}
+
+// UpdateOfficialOrgCertificateSettings - Update certificate settings
+func UpdateOfficialOrgCertificateSettings(c *gin.Context) {
+	eventID := c.Param("eventId")
+
+	var input struct {
+		IsEnabled       bool    `json:"is_enabled"`
+		MinScorePercent int     `json:"min_score_percent"`
+		CertTitle       *string `json:"certificate_title"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak valid"})
+		return
+	}
+
+	if input.MinScorePercent < 1 || input.MinScorePercent > 100 {
+		input.MinScorePercent = 80
+	}
+
+	_, err := config.DB.Exec(`
+		INSERT INTO event_certificates (event_id, is_enabled, min_score_percent, certificate_title)
+		VALUES (?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE is_enabled = VALUES(is_enabled), 
+		                        min_score_percent = VALUES(min_score_percent),
+		                        certificate_title = VALUES(certificate_title)
+	`, eventID, input.IsEnabled, input.MinScorePercent, input.CertTitle)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Pengaturan sertifikat berhasil disimpan"})
+}
+
+// GetOfficialOrgSessionQuiz - Get quiz for Official org session
+func GetOfficialOrgSessionQuiz(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	var quiz struct {
+		ID        int64  `db:"id" json:"id"`
+		SessionID int64  `db:"session_id" json:"session_id"`
+		Title     string `db:"title" json:"title"`
+		IsEnabled bool   `db:"is_enabled" json:"is_enabled"`
+	}
+
+	err := config.DB.Get(&quiz, `SELECT id, session_id, title, is_enabled FROM session_quizzes WHERE session_id = ?`, sessionID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"quiz": nil, "questions": []interface{}{}})
+		return
+	}
+
+	var questions []struct {
+		ID            int64   `db:"id" json:"id"`
+		QuestionText  string  `db:"question_text" json:"question_text"`
+		OptionA       string  `db:"option_a" json:"option_a"`
+		OptionB       string  `db:"option_b" json:"option_b"`
+		OptionC       *string `db:"option_c" json:"option_c"`
+		OptionD       *string `db:"option_d" json:"option_d"`
+		CorrectOption string  `db:"correct_option" json:"correct_option"`
+		OrderIndex    int     `db:"order_index" json:"order_index"`
+	}
+	config.DB.Select(&questions, `SELECT id, question_text, option_a, option_b, option_c, option_d, correct_option, order_index FROM quiz_questions WHERE quiz_id = ? ORDER BY order_index`, quiz.ID)
+
+	c.JSON(http.StatusOK, gin.H{"quiz": quiz, "questions": questions})
+}
+
+// SaveOfficialOrgSessionQuiz - Save quiz for Official org session
+func SaveOfficialOrgSessionQuiz(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	var input struct {
+		Title     string `json:"title"`
+		IsEnabled bool   `json:"is_enabled"`
+		Questions []struct {
+			QuestionText  string  `json:"question_text"`
+			OptionA       string  `json:"option_a"`
+			OptionB       string  `json:"option_b"`
+			OptionC       *string `json:"option_c"`
+			OptionD       *string `json:"option_d"`
+			CorrectOption string  `json:"correct_option"`
+		} `json:"questions"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak valid"})
+		return
+	}
+
+	if len(input.Questions) > 10 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Maksimal 10 pertanyaan"})
+		return
+	}
+
+	// Upsert quiz
+	result, err := config.DB.Exec(`
+		INSERT INTO session_quizzes (session_id, title, is_enabled)
+		VALUES (?, ?, ?)
+		ON DUPLICATE KEY UPDATE title = VALUES(title), is_enabled = VALUES(is_enabled)
+	`, sessionID, input.Title, input.IsEnabled)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan kuis"})
+		return
+	}
+
+	var quizID int64
+	config.DB.Get(&quizID, "SELECT id FROM session_quizzes WHERE session_id = ?", sessionID)
+	if quizID == 0 {
+		quizID, _ = result.LastInsertId()
+	}
+
+	// Delete old questions and insert new
+	config.DB.Exec("DELETE FROM quiz_questions WHERE quiz_id = ?", quizID)
+
+	for i, q := range input.Questions {
+		config.DB.Exec(`
+			INSERT INTO quiz_questions (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, order_index)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, quizID, q.QuestionText, q.OptionA, q.OptionB, q.OptionC, q.OptionD, q.CorrectOption, i+1)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Kuis berhasil disimpan", "quiz_id": quizID})
+}
+
+// DeleteOfficialOrgSessionQuiz - Delete quiz
+func DeleteOfficialOrgSessionQuiz(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+
+	config.DB.Exec("DELETE FROM session_quizzes WHERE session_id = ?", sessionID)
+	c.JSON(http.StatusOK, gin.H{"message": "Kuis berhasil dihapus"})
 }

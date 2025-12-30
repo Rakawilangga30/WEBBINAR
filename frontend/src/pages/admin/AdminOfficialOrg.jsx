@@ -7,7 +7,12 @@ export default function AdminOfficialOrg() {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
-    const [editForm, setEditForm] = useState({ description: '', category: '', email: '' });
+    const [editForm, setEditForm] = useState({ name: '', description: '', category: '', email: '' });
+
+    // Create Event Modal
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createForm, setCreateForm] = useState({ title: '', description: '', category: 'Teknologi' });
+    const [creating, setCreating] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -15,16 +20,15 @@ export default function AdminOfficialOrg() {
 
     const fetchData = async () => {
         try {
-            // Get Official org info
             const orgRes = await api.get('/admin/official-org');
             setOrg(orgRes.data.organization);
             setEditForm({
+                name: orgRes.data.organization.name || '',
                 description: orgRes.data.organization.description || '',
                 category: orgRes.data.organization.category || '',
                 email: orgRes.data.organization.email || ''
             });
 
-            // Get events under Official org using new endpoint
             const eventsRes = await api.get('/admin/official-org/events');
             setEvents(eventsRes.data.events || []);
         } catch (err) {
@@ -46,6 +50,26 @@ export default function AdminOfficialOrg() {
         }
     };
 
+    const handleCreateEvent = async (e) => {
+        e.preventDefault();
+        if (!createForm.title.trim()) {
+            alert('Judul event wajib diisi');
+            return;
+        }
+        setCreating(true);
+        try {
+            await api.post('/admin/official-org/events', createForm);
+            alert('✅ Event berhasil dibuat!');
+            setShowCreateModal(false);
+            setCreateForm({ title: '', description: '', category: 'Teknologi' });
+            fetchData();
+        } catch (err) {
+            alert('Gagal: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setCreating(false);
+        }
+    };
+
     const handleDeleteEvent = async (eventId, eventTitle) => {
         if (!window.confirm(`Yakin ingin menghapus event "${eventTitle}"? Semua data session dan materi akan ikut terhapus.`)) {
             return;
@@ -59,8 +83,17 @@ export default function AdminOfficialOrg() {
         }
     };
 
-    const formatPrice = (amount) => {
-        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount || 0);
+    const handleTogglePublish = async (eventId, currentStatus) => {
+        try {
+            if (currentStatus === 'PUBLISHED') {
+                await api.put(`/admin/official-org/events/${eventId}/unpublish`);
+            } else {
+                await api.put(`/admin/official-org/events/${eventId}/publish`);
+            }
+            fetchData();
+        } catch (err) {
+            alert('Gagal: ' + (err.response?.data?.error || err.message));
+        }
     };
 
     const formatDate = (dateStr) => {
@@ -85,7 +118,7 @@ export default function AdminOfficialOrg() {
             {/* Header */}
             <div style={{ marginBottom: "32px" }}>
                 <h1 style={{ margin: "0 0 8px 0", color: "#1e40af", fontSize: "1.75rem" }}>🏛️ Official Organization</h1>
-                <p style={{ margin: 0, color: "#64748b" }}>Kelola organisasi official dan event affiliate</p>
+                <p style={{ margin: 0, color: "#64748b" }}>Kelola organisasi official dan event</p>
             </div>
 
             {/* Org Info Card */}
@@ -150,6 +183,16 @@ export default function AdminOfficialOrg() {
                     <form onSubmit={handleUpdateOrg}>
                         <div style={{ display: "grid", gap: "16px" }}>
                             <div>
+                                <label style={labelStyle}>Nama Organisasi</label>
+                                <input
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                    style={inputStyle}
+                                    placeholder="Nama organisasi"
+                                />
+                            </div>
+                            <div>
                                 <label style={labelStyle}>Deskripsi</label>
                                 <textarea
                                     value={editForm.description}
@@ -208,12 +251,20 @@ export default function AdminOfficialOrg() {
 
             {/* Events List */}
             <div style={{ marginTop: "32px" }}>
-                <h3 style={{ margin: "0 0 20px 0", color: "#1e293b" }}>📦 Event Affiliate ({events.length})</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                    <h3 style={{ margin: 0, color: "#1e293b" }}>📦 Event ({events.length})</h3>
+                    <button onClick={() => setShowCreateModal(true)} style={buttonPrimary}>
+                        ➕ Buat Event Baru
+                    </button>
+                </div>
 
                 {events.length === 0 ? (
                     <div style={{ ...cardStyle, textAlign: "center", padding: "40px" }}>
                         <div style={{ fontSize: "3rem", marginBottom: "12px" }}>📭</div>
-                        <p style={{ color: "#64748b" }}>Belum ada event affiliate yang disetujui</p>
+                        <p style={{ color: "#64748b" }}>Belum ada event</p>
+                        <button onClick={() => setShowCreateModal(true)} style={{ ...buttonPrimary, marginTop: "12px" }}>
+                            ➕ Buat Event Pertama
+                        </button>
                     </div>
                 ) : (
                     <div style={{ display: "grid", gap: "16px" }}>
@@ -233,21 +284,31 @@ export default function AdminOfficialOrg() {
                                     )}
                                     <div style={{ flex: 1 }}>
                                         <h4 style={{ margin: "0 0 8px 0", color: "#1e293b" }}>{event.title}</h4>
-                                        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "0.85rem", color: "#64748b" }}>
+                                        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "0.85rem", color: "#64748b", alignItems: "center" }}>
                                             <span>📅 {formatDate(event.created_at)}</span>
-                                            <span style={{
-                                                padding: "2px 8px",
-                                                borderRadius: "12px",
-                                                background: event.publish_status === 'PUBLISHED' ? '#d1fae5' : '#fef3c7',
-                                                color: event.publish_status === 'PUBLISHED' ? '#047857' : '#b45309'
-                                            }}>
-                                                {event.publish_status}
+                                            <span style={{ padding: "2px 8px", borderRadius: "4px", background: event.category ? '#dbeafe' : '#f1f5f9', color: '#1e40af', fontSize: "0.8rem" }}>
+                                                {event.category || 'Tanpa Kategori'}
                                             </span>
                                             <span>📚 {event.sessions_count || 0} sesi</span>
                                             <span>🛒 {event.total_sales || 0} penjualan</span>
                                         </div>
                                     </div>
-                                    <div style={{ display: "flex", gap: "8px" }}>
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                        {/* Publish Toggle */}
+                                        <button
+                                            onClick={() => handleTogglePublish(event.id, event.publish_status)}
+                                            style={{
+                                                padding: "6px 12px",
+                                                background: event.publish_status === 'PUBLISHED' ? '#10b981' : '#f59e0b',
+                                                color: "white",
+                                                border: "none",
+                                                borderRadius: "6px",
+                                                cursor: "pointer",
+                                                fontSize: "0.85rem"
+                                            }}
+                                        >
+                                            {event.publish_status === 'PUBLISHED' ? '✅ Published' : '📝 Draft'}
+                                        </button>
                                         <Link
                                             to={`/dashboard/admin/official-org/events/${event.id}`}
                                             style={{
@@ -273,7 +334,7 @@ export default function AdminOfficialOrg() {
                                                 fontSize: "0.85rem"
                                             }}
                                         >
-                                            🗑️ Hapus
+                                            🗑️
                                         </button>
                                     </div>
                                 </div>
@@ -292,6 +353,62 @@ export default function AdminOfficialOrg() {
                     💰 Buku Besar Affiliate
                 </Link>
             </div>
+
+            {/* Create Event Modal */}
+            {showCreateModal && (
+                <div style={modalOverlay}>
+                    <div style={modalContent}>
+                        <h3 style={{ margin: "0 0 20px 0" }}>➕ Buat Event Baru</h3>
+                        <form onSubmit={handleCreateEvent}>
+                            <div style={{ display: "grid", gap: "16px" }}>
+                                <div>
+                                    <label style={labelStyle}>Judul Event *</label>
+                                    <input
+                                        type="text"
+                                        value={createForm.title}
+                                        onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                                        style={inputStyle}
+                                        placeholder="Masukkan judul event"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Deskripsi</label>
+                                    <textarea
+                                        value={createForm.description}
+                                        onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                                        style={{ ...inputStyle, minHeight: "80px" }}
+                                        placeholder="Deskripsi event (opsional)"
+                                    />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Kategori</label>
+                                    <select
+                                        value={createForm.category}
+                                        onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
+                                        style={inputStyle}
+                                    >
+                                        <option value="Teknologi">Teknologi</option>
+                                        <option value="Bisnis">Bisnis</option>
+                                        <option value="Desain">Desain</option>
+                                        <option value="Marketing">Marketing</option>
+                                        <option value="Pendidikan">Pendidikan</option>
+                                        <option value="Lainnya">Lainnya</option>
+                                    </select>
+                                </div>
+                                <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "8px" }}>
+                                    <button type="button" onClick={() => setShowCreateModal(false)} style={buttonSecondary}>
+                                        Batal
+                                    </button>
+                                    <button type="submit" disabled={creating} style={buttonPrimary}>
+                                        {creating ? 'Menyimpan...' : '💾 Simpan'}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -356,4 +473,27 @@ const linkCard = {
     color: "#374151",
     textDecoration: "none",
     fontWeight: "500"
+};
+
+const modalOverlay = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+};
+
+const modalContent = {
+    background: "white",
+    padding: "24px",
+    borderRadius: "12px",
+    width: "100%",
+    maxWidth: "500px",
+    maxHeight: "90vh",
+    overflow: "auto"
 };

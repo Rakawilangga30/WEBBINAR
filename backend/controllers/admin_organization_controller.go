@@ -48,8 +48,8 @@ func ReviewOrganizationApplication(c *gin.Context) {
 		// Insert ke tabel organizations
 		_, err := config.DB.Exec(`
 			INSERT INTO organizations 
-			(owner_user_id, name, description, category, logo_url, email, phone, website)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			(owner_user_id, name, description, category, logo_url, email, phone, website, social_link)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			application.UserID,
 			application.OrgName,
@@ -59,6 +59,7 @@ func ReviewOrganizationApplication(c *gin.Context) {
 			application.OrgEmail,
 			application.OrgPhone,
 			application.OrgWebsite,
+			application.SocialMedia,
 		)
 
 		if err != nil {
