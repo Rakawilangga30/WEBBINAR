@@ -3,6 +3,8 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../api";
 import QuizTaker from "../components/QuizTaker";
 import CertificateViewer from "../components/CertificateViewer";
+import SecureVideoPlayer from "../components/SecureVideoPlayer";
+import PurchaseButton from "../components/PurchaseButton";
 
 export default function EventDetail() {
     const { id } = useParams();
@@ -395,25 +397,50 @@ export default function EventDetail() {
                                         📂 Buka Materi
                                     </button>
                                 ) : (
-                                    <button
-                                        onClick={() => handleBuy(s.id)}
-                                        disabled={event.publish_status === 'SCHEDULED'}
-                                        style={{
-                                            width: "100%",
-                                            background: event.publish_status === 'SCHEDULED'
-                                                ? "#e2e8f0"
-                                                : "linear-gradient(135deg, #3b82f6, #2563eb)",
-                                            color: event.publish_status === 'SCHEDULED' ? "#94a3b8" : "white",
-                                            padding: "12px",
-                                            border: "none",
-                                            borderRadius: "8px",
-                                            cursor: event.publish_status === 'SCHEDULED' ? "not-allowed" : "pointer",
-                                            fontWeight: "600",
-                                            fontSize: "0.9rem"
-                                        }}
-                                    >
-                                        {event.publish_status === 'SCHEDULED' ? "🔒 Belum Dibuka" : "🛒 Beli Sesi Ini"}
-                                    </button>
+                                    event.publish_status === 'SCHEDULED' ? (
+                                        <button
+                                            disabled
+                                            style={{
+                                                width: "100%",
+                                                background: "#e2e8f0",
+                                                color: "#94a3b8",
+                                                padding: "12px",
+                                                border: "none",
+                                                borderRadius: "8px",
+                                                cursor: "not-allowed",
+                                                fontWeight: "600",
+                                                fontSize: "0.9rem"
+                                            }}
+                                        >
+                                            🔒 Belum Dibuka
+                                        </button>
+                                    ) : s.price === 0 || s.price === null ? (
+                                        /* FREE session - direct enrollment without payment */
+                                        <button
+                                            onClick={() => handleBuy(s.id)}
+                                            style={{
+                                                width: "100%",
+                                                background: "linear-gradient(135deg, #10b981, #059669)",
+                                                color: "white",
+                                                padding: "12px",
+                                                border: "none",
+                                                borderRadius: "8px",
+                                                cursor: "pointer",
+                                                fontWeight: "600",
+                                                fontSize: "0.9rem"
+                                            }}
+                                        >
+                                            🎁 GRATIS - Daftar Sekarang
+                                        </button>
+                                    ) : (
+                                        <PurchaseButton
+                                            sessionId={s.id}
+                                            sessionName={s.title}
+                                            price={s.price}
+                                            onSuccess={() => fetchEventDetail()}
+                                            className="full-width"
+                                        />
+                                    )
                                 )}
 
                                 {/* Quiz Button - Show in session if purchased and has quiz */}
@@ -517,7 +544,7 @@ export default function EventDetail() {
                                     borderRadius: "12px",
                                     overflow: "hidden"
                                 }}>
-                                    <video controls width="100%" height="400" src={activeVideoUrl} autoPlay />
+                                    <SecureVideoPlayer src={activeVideoUrl} autoPlay={true} />
                                 </div>
                             )}
 

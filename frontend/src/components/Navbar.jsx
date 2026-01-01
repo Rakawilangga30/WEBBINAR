@@ -38,6 +38,7 @@ export default function Navbar() {
       {/* Navigation Links */}
       <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
         <Link to="/" style={linkStyle}>Home</Link>
+        <Link to="/about" style={linkStyle}>About</Link>
 
         {user ? (
           <>

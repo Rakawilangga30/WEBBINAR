@@ -96,8 +96,21 @@ export default function AffiliateSubmitEvent() {
             return;
         }
 
-        if (!form.event_price || parseInt(form.event_price) <= 0) {
-            alert('Harga event wajib diisi!');
+        const price = parseInt(form.event_price) || 0;
+
+        // If price is 0 (free), ask for confirmation
+        if (price === 0) {
+            const confirmFree = window.confirm(
+                '⚠️ PERINGATAN HARGA GRATIS\n\n' +
+                'Anda akan membuat event GRATIS (Rp 0).\n' +
+                'Anda tidak akan menerima komisi dari event ini.\n\n' +
+                'Apakah Anda yakin ingin melanjutkan dengan harga gratis?'
+            );
+            if (!confirmFree) {
+                return;
+            }
+        } else if (price < 0) {
+            alert('Harga event tidak boleh negatif!');
             return;
         }
 
@@ -263,19 +276,24 @@ export default function AffiliateSubmitEvent() {
                             />
                         </div>
                         <div>
-                            <label style={labelStyle}>Harga (Rp) *</label>
+                            <label style={labelStyle}>Harga (Rp) - Kosongkan atau 0 untuk GRATIS</label>
                             <input
                                 type="number"
                                 value={form.event_price}
                                 onChange={(e) => setForm({ ...form, event_price: e.target.value })}
-                                placeholder="100000"
+                                placeholder="0 untuk gratis, atau masukkan harga"
                                 style={inputStyle}
                                 min="0"
-                                required
                             />
-                            <p style={{ margin: "8px 0 0 0", color: "#10b981", fontSize: "0.85rem" }}>
-                                💰 Anda akan menerima 90% dari harga ini untuk setiap penjualan
-                            </p>
+                            {(parseInt(form.event_price) || 0) === 0 ? (
+                                <p style={{ margin: "8px 0 0 0", color: "#f59e0b", fontSize: "0.85rem" }}>
+                                    🎁 Event GRATIS - Anda tidak akan menerima komisi
+                                </p>
+                            ) : (
+                                <p style={{ margin: "8px 0 0 0", color: "#10b981", fontSize: "0.85rem" }}>
+                                    💰 Anda akan menerima 90% = Rp {Math.floor((parseInt(form.event_price) || 0) * 0.9).toLocaleString('id-ID')} per penjualan
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>

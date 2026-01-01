@@ -25,6 +25,13 @@ func RegisterRoutes(r *gin.Engine) {
 
 		api.GET("/config/midtrans", controllers.GetMidtransConfig)
 		api.POST("/webhook/midtrans", controllers.HandleMidtransNotification)
+
+		// Public endpoints
+		api.GET("/organizations/public", controllers.GetPublicOrganizations)
+		api.POST("/reports", controllers.SubmitReport)
+
+		// SANDBOX ONLY - Public endpoint for testing payment
+		api.POST("/sandbox/simulate-payment", controllers.SimulatePaymentSuccess)
 	}
 
 	// ==========================================
@@ -54,6 +61,8 @@ func RegisterRoutes(r *gin.Engine) {
 		userGroup.PUT("/notifications/read-all", controllers.MarkAllNotificationsAsRead)
 
 		userGroup.POST("/payment/token", controllers.GetPaymentToken)
+		userGroup.POST("/payment/check-status", controllers.CheckPaymentStatus)
+		userGroup.POST("/payment/simulate-success", controllers.SimulatePaymentSuccess)
 
 		// Quiz & Certificate for users
 		userGroup.GET("/events/:eventID/progress", controllers.GetUserEventProgress)
@@ -89,6 +98,11 @@ func RegisterRoutes(r *gin.Engine) {
 		affiliate.GET("/dashboard", controllers.GetAffiliateDashboard)
 		affiliate.GET("/events", controllers.GetAffiliateEvents)
 		affiliate.GET("/events/:id", controllers.GetAffiliateSubmissionDetail)
+
+		// Balance & Withdrawal
+		affiliate.GET("/balance", controllers.GetAffiliateBalance)
+		affiliate.POST("/withdraw", controllers.SimulateWithdraw)
+		affiliate.GET("/withdrawals", controllers.GetWithdrawalHistory)
 	}
 
 	// ==========================================
@@ -137,6 +151,11 @@ func RegisterRoutes(r *gin.Engine) {
 		org.GET("/sessions/:sessionID/quiz", controllers.GetSessionQuiz)
 		org.POST("/sessions/:sessionID/quiz", controllers.SaveSessionQuiz)
 		org.DELETE("/sessions/:sessionID/quiz", controllers.DeleteSessionQuiz)
+
+		// Balance & Withdrawal
+		org.GET("/balance", controllers.GetOrganizationBalance)
+		org.POST("/withdraw", controllers.SimulateOrgWithdraw)
+		org.GET("/withdrawals", controllers.GetOrgWithdrawalHistory)
 	}
 
 	// ==========================================
@@ -215,5 +234,9 @@ func RegisterRoutes(r *gin.Engine) {
 		admin.GET("/official-org/sessions/:sessionId/quiz", controllers.GetOfficialOrgSessionQuiz)
 		admin.POST("/official-org/sessions/:sessionId/quiz", controllers.SaveOfficialOrgSessionQuiz)
 		admin.DELETE("/official-org/sessions/:sessionId/quiz", controllers.DeleteOfficialOrgSessionQuiz)
+
+		// Reports Management
+		admin.GET("/reports", controllers.GetReports)
+		admin.PUT("/reports/:id", controllers.UpdateReportStatus)
 	}
 }

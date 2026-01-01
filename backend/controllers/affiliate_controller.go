@@ -423,3 +423,151 @@ func GetAffiliateSubmissionDetail(c *gin.Context) {
 		"sales":      sales,
 	})
 }
+
+// ===============================================
+// AFFILIATE BALANCE & WITHDRAWAL
+// ===============================================
+
+// GetAffiliateBalance - Get balance summary for affiliate
+func GetAffiliateBalance(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	var balance struct {
+		TotalEarned      float64 `db:"total_earned" json:"total_earned"`
+		TotalWithdrawn   float64 `db:"total_withdrawn" json:"total_withdrawn"`
+		AvailableBalance float64 `json:"available_balance"`
+	}
+
+	// Get from affiliate_balances table
+	err := config.DB.Get(&balance, `
+		SELECT COALESCE(total_earned, 0) as total_earned, 
+		       COALESCE(total_withdrawn, 0) as total_withdrawn
+		FROM affiliate_balances WHERE user_id = ?
+	`, userID)
+
+	if err != nil {
+		// No balance record yet - calculate from ledger
+		config.DB.Get(&balance.TotalEarned, `
+			SELECT COALESCE(SUM(al.affiliate_amount), 0)
+			FROM affiliate_ledgers al
+			JOIN affiliate_submissions asub ON al.affiliate_submission_id = asub.id
+			WHERE asub.user_id = ?
+		`, userID)
+		balance.TotalWithdrawn = 0
+	}
+
+	balance.AvailableBalance = balance.TotalEarned - balance.TotalWithdrawn
+
+	c.JSON(http.StatusOK, gin.H{"balance": balance})
+}
+
+// SimulateWithdraw - Simulate instant withdrawal (no admin approval)
+func SimulateWithdraw(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	var input struct {
+		Amount        float64 `json:"amount" binding:"required"`
+		PaymentMethod string  `json:"payment_method" binding:"required"` // BANK, DANA, GOPAY, OVO, SHOPEEPAY
+		AccountName   string  `json:"account_name" binding:"required"`
+		AccountNumber string  `json:"account_number" binding:"required"`
+		BankName      string  `json:"bank_name"` // Only for BANK
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak lengkap"})
+		return
+	}
+
+	// Minimum withdrawal Rp 50,000
+	if input.Amount < 50000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Minimal penarikan Rp 50.000"})
+		return
+	}
+
+	// Get current balance
+	var balance struct {
+		TotalEarned    float64 `db:"total_earned"`
+		TotalWithdrawn float64 `db:"total_withdrawn"`
+	}
+	err := config.DB.Get(&balance, `
+		SELECT COALESCE(total_earned, 0) as total_earned, 
+		       COALESCE(total_withdrawn, 0) as total_withdrawn
+		FROM affiliate_balances WHERE user_id = ?
+	`, userID)
+
+	if err != nil {
+		// No balance record - check ledger
+		config.DB.Get(&balance.TotalEarned, `
+			SELECT COALESCE(SUM(al.affiliate_amount), 0)
+			FROM affiliate_ledgers al
+			JOIN affiliate_submissions asub ON al.affiliate_submission_id = asub.id
+			WHERE asub.user_id = ?
+		`, userID)
+	}
+
+	availableBalance := balance.TotalEarned - balance.TotalWithdrawn
+
+	if input.Amount > availableBalance {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Saldo tidak cukup. Saldo tersedia: Rp %.0f", availableBalance)})
+		return
+	}
+
+	// Update balance - simulate instant withdrawal
+	_, err = config.DB.Exec(`
+		INSERT INTO affiliate_balances (user_id, total_earned, total_withdrawn, balance)
+		VALUES (?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE 
+			total_withdrawn = total_withdrawn + ?,
+			balance = total_earned - (total_withdrawn + ?)
+	`, userID, balance.TotalEarned, input.Amount, balance.TotalEarned-input.Amount, input.Amount, input.Amount)
+
+	if err != nil {
+		fmt.Printf("[WITHDRAW] Error updating balance: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses penarikan"})
+		return
+	}
+
+	// Record transaction
+	withdrawRef := fmt.Sprintf("WD-%d-%d", time.Now().Unix(), userID)
+	description := fmt.Sprintf("Penarikan ke %s - %s (%s)", input.PaymentMethod, input.AccountName, input.AccountNumber)
+	if input.PaymentMethod == "BANK" && input.BankName != "" {
+		description = fmt.Sprintf("Penarikan ke %s %s - %s (%s)", input.BankName, input.PaymentMethod, input.AccountName, input.AccountNumber)
+	}
+
+	config.DB.Exec(`
+		INSERT INTO financial_transactions (transaction_type, entity_type, entity_id, amount, description, reference_id)
+		VALUES ('WITHDRAWAL', 'AFFILIATE', ?, ?, ?, ?)
+	`, userID, input.Amount, description, withdrawRef)
+
+	fmt.Printf("[WITHDRAW] ✅ User %d withdrew Rp %.0f to %s\n", userID, input.Amount, input.PaymentMethod)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Penarikan berhasil diproses",
+		"amount":      input.Amount,
+		"reference":   withdrawRef,
+		"new_balance": availableBalance - input.Amount,
+	})
+}
+
+// GetWithdrawalHistory - Get withdrawal transaction history
+func GetWithdrawalHistory(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	var transactions []struct {
+		ID          int64   `db:"id" json:"id"`
+		Amount      float64 `db:"amount" json:"amount"`
+		Description string  `db:"description" json:"description"`
+		ReferenceID string  `db:"reference_id" json:"reference_id"`
+		CreatedAt   string  `db:"created_at" json:"created_at"`
+	}
+
+	config.DB.Select(&transactions, `
+		SELECT id, amount, description, reference_id, created_at
+		FROM financial_transactions
+		WHERE entity_type = 'AFFILIATE' AND entity_id = ? AND transaction_type = 'WITHDRAWAL'
+		ORDER BY created_at DESC
+		LIMIT 50
+	`, userID)
+
+	c.JSON(http.StatusOK, gin.H{"transactions": transactions})
+}

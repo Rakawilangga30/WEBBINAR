@@ -105,6 +105,7 @@ export default function Sidebar() {
             <MenuItem to="/dashboard/affiliate" label="Dashboard" icon="📊" />
             <MenuItem to="/dashboard/affiliate/submit" label="Ajukan Event" icon="➕" />
             <MenuItem to="/dashboard/affiliate/events" label="Event Saya" icon="📦" />
+            <MenuItem to="/dashboard/affiliate/withdraw" label="Tarik Dana" icon="💸" />
           </>
         )}
 
@@ -114,6 +115,7 @@ export default function Sidebar() {
             <SectionTitle>Creator Area</SectionTitle>
             <MenuItem to="/dashboard/org" label="Dashboard Org" icon="🏢" />
             <MenuItem to="/dashboard/org/events" label="Report" icon="📊" />
+            <MenuItem to="/dashboard/org/withdraw" label="Tarik Dana" icon="💸" />
           </>
         )}
 
@@ -126,6 +128,7 @@ export default function Sidebar() {
             <MenuItem to="/dashboard/admin/approvals" label="Persetujuan Org" icon="📝" />
             <MenuItem to="/dashboard/admin/affiliates" label="Pengajuan Affiliate" icon="🤝" />
             <MenuItem to="/dashboard/admin/official-org" label="Official Org" icon="🏛️" />
+            <MenuItem to="/dashboard/admin/reports" label="Kelola Laporan" icon="📢" />
           </>
         )}
       </div>

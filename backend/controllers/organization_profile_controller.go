@@ -13,6 +13,35 @@ import (
 )
 
 // =======================================
+// PUBLIC: GET ALL ORGANIZATIONS
+// =======================================
+func GetPublicOrganizations(c *gin.Context) {
+	var organizations []struct {
+		ID          int64   `db:"id" json:"id"`
+		Name        string  `db:"name" json:"name"`
+		Description *string `db:"description" json:"description"`
+		Category    *string `db:"category" json:"category"`
+		LogoURL     *string `db:"logo_url" json:"logo_url"`
+		EventCount  int     `db:"event_count" json:"event_count"`
+	}
+
+	err := config.DB.Select(&organizations, `
+		SELECT o.id, o.name, o.description, o.category, o.logo_url,
+			(SELECT COUNT(*) FROM events e WHERE e.organization_id = o.id AND e.is_published = 1) as event_count
+		FROM organizations o
+		ORDER BY event_count DESC, o.name ASC
+		LIMIT 50
+	`)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to fetch organizations"})
+		return
+	}
+
+	c.JSON(200, gin.H{"organizations": organizations})
+}
+
+// =======================================
 // ORGANIZATION: GET PROFILE
 // =======================================
 func GetOrganizationProfile(c *gin.Context) {
@@ -299,4 +328,178 @@ func GetEventBuyers(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"buyers": buyers})
+}
+
+// =======================================
+// ORGANIZATION: BALANCE & WITHDRAWAL
+// =======================================
+
+// GetOrganizationBalance - Get balance summary for organization
+func GetOrganizationBalance(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	// Get org ID
+	var orgID int64
+	err := config.DB.Get(&orgID, `SELECT id FROM organizations WHERE owner_user_id = ?`, userID)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Organization not found"})
+		return
+	}
+
+	var balance struct {
+		TotalEarned      float64 `db:"total_earned" json:"total_earned"`
+		TotalWithdrawn   float64 `db:"total_withdrawn" json:"total_withdrawn"`
+		AvailableBalance float64 `json:"available_balance"`
+	}
+
+	// Get from organization_balances table
+	err = config.DB.Get(&balance, `
+		SELECT COALESCE(total_earned, 0) as total_earned, 
+		       COALESCE(total_withdrawn, 0) as total_withdrawn
+		FROM organization_balances WHERE organization_id = ?
+	`, orgID)
+
+	if err != nil {
+		// No balance record - calculate from purchases
+		config.DB.Get(&balance.TotalEarned, `
+			SELECT COALESCE(SUM(p.price_paid), 0)
+			FROM purchases p
+			JOIN sessions s ON p.session_id = s.id
+			JOIN events e ON s.event_id = e.id
+			WHERE e.organization_id = ? AND p.status = 'PAID'
+		`, orgID)
+		balance.TotalWithdrawn = 0
+	}
+
+	balance.AvailableBalance = balance.TotalEarned - balance.TotalWithdrawn
+
+	c.JSON(200, gin.H{"balance": balance, "organization_id": orgID})
+}
+
+// SimulateOrgWithdraw - Simulate instant withdrawal for organization
+func SimulateOrgWithdraw(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	// Get org ID
+	var orgID int64
+	err := config.DB.Get(&orgID, `SELECT id FROM organizations WHERE owner_user_id = ?`, userID)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Organization not found"})
+		return
+	}
+
+	var input struct {
+		Amount        float64 `json:"amount" binding:"required"`
+		PaymentMethod string  `json:"payment_method" binding:"required"`
+		AccountName   string  `json:"account_name" binding:"required"`
+		AccountNumber string  `json:"account_number" binding:"required"`
+		BankName      string  `json:"bank_name"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(400, gin.H{"error": "Data tidak lengkap"})
+		return
+	}
+
+	// Minimum withdrawal Rp 50,000
+	if input.Amount < 50000 {
+		c.JSON(400, gin.H{"error": "Minimal penarikan Rp 50.000"})
+		return
+	}
+
+	// Get current balance
+	var balance struct {
+		TotalEarned    float64 `db:"total_earned"`
+		TotalWithdrawn float64 `db:"total_withdrawn"`
+	}
+	err = config.DB.Get(&balance, `
+		SELECT COALESCE(total_earned, 0) as total_earned, 
+		       COALESCE(total_withdrawn, 0) as total_withdrawn
+		FROM organization_balances WHERE organization_id = ?
+	`, orgID)
+
+	if err != nil {
+		// No balance record - check purchases
+		config.DB.Get(&balance.TotalEarned, `
+			SELECT COALESCE(SUM(p.price_paid), 0)
+			FROM purchases p
+			JOIN sessions s ON p.session_id = s.id
+			JOIN events e ON s.event_id = e.id
+			WHERE e.organization_id = ? AND p.status = 'PAID'
+		`, orgID)
+	}
+
+	availableBalance := balance.TotalEarned - balance.TotalWithdrawn
+
+	if input.Amount > availableBalance {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("Saldo tidak cukup. Saldo tersedia: Rp %.0f", availableBalance)})
+		return
+	}
+
+	// Update balance - simulate instant withdrawal
+	_, err = config.DB.Exec(`
+		INSERT INTO organization_balances (organization_id, total_earned, total_withdrawn, balance)
+		VALUES (?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE 
+			total_withdrawn = total_withdrawn + ?,
+			balance = total_earned - (total_withdrawn + ?)
+	`, orgID, balance.TotalEarned, input.Amount, balance.TotalEarned-input.Amount, input.Amount, input.Amount)
+
+	if err != nil {
+		fmt.Printf("[ORG WITHDRAW] Error updating balance: %v\n", err)
+		c.JSON(500, gin.H{"error": "Gagal memproses penarikan"})
+		return
+	}
+
+	// Record transaction
+	withdrawRef := fmt.Sprintf("WD-ORG-%d-%d", time.Now().Unix(), orgID)
+	description := fmt.Sprintf("Penarikan ke %s - %s (%s)", input.PaymentMethod, input.AccountName, input.AccountNumber)
+	if input.PaymentMethod == "BANK" && input.BankName != "" {
+		description = fmt.Sprintf("Penarikan ke %s %s - %s (%s)", input.BankName, input.PaymentMethod, input.AccountName, input.AccountNumber)
+	}
+
+	config.DB.Exec(`
+		INSERT INTO financial_transactions (transaction_type, entity_type, entity_id, amount, description, reference_id)
+		VALUES ('WITHDRAWAL', 'ORGANIZATION', ?, ?, ?, ?)
+	`, orgID, input.Amount, description, withdrawRef)
+
+	fmt.Printf("[ORG WITHDRAW] ✅ Org %d withdrew Rp %.0f to %s\n", orgID, input.Amount, input.PaymentMethod)
+
+	c.JSON(200, gin.H{
+		"message":     "Penarikan berhasil diproses",
+		"amount":      input.Amount,
+		"reference":   withdrawRef,
+		"new_balance": availableBalance - input.Amount,
+	})
+}
+
+// GetOrgWithdrawalHistory - Get withdrawal transaction history for organization
+func GetOrgWithdrawalHistory(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	// Get org ID
+	var orgID int64
+	err := config.DB.Get(&orgID, `SELECT id FROM organizations WHERE owner_user_id = ?`, userID)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Organization not found"})
+		return
+	}
+
+	var transactions []struct {
+		ID          int64   `db:"id" json:"id"`
+		Amount      float64 `db:"amount" json:"amount"`
+		Description string  `db:"description" json:"description"`
+		ReferenceID string  `db:"reference_id" json:"reference_id"`
+		CreatedAt   string  `db:"created_at" json:"created_at"`
+	}
+
+	config.DB.Select(&transactions, `
+		SELECT id, amount, description, reference_id, created_at
+		FROM financial_transactions
+		WHERE entity_type = 'ORGANIZATION' AND entity_id = ? AND transaction_type = 'WITHDRAWAL'
+		ORDER BY created_at DESC
+		LIMIT 50
+	`, orgID)
+
+	c.JSON(200, gin.H{"transactions": transactions})
 }

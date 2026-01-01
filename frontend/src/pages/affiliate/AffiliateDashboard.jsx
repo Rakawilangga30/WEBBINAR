@@ -4,6 +4,7 @@ import api from '../../api';
 
 export default function AffiliateDashboard() {
     const [stats, setStats] = useState(null);
+    const [balance, setBalance] = useState(null);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [profileComplete, setProfileComplete] = useState(true);
@@ -15,13 +16,15 @@ export default function AffiliateDashboard() {
 
     const fetchData = async () => {
         try {
-            const [dashboardRes, profileRes] = await Promise.all([
+            const [dashboardRes, profileRes, balanceRes] = await Promise.all([
                 api.get('/affiliate/dashboard'),
-                api.get('/user/profile')
+                api.get('/user/profile'),
+                api.get('/affiliate/balance')
             ]);
 
             setStats(dashboardRes.data.stats);
             setProfile(profileRes.data.user);
+            setBalance(balanceRes.data.balance);
 
             // Check profile completeness
             const user = profileRes.data.user;
@@ -128,80 +131,94 @@ export default function AffiliateDashboard() {
                 </div>
             )}
 
-            {/* Stats Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginBottom: "32px" }}>
-                <div style={statCard}>
-                    <div style={{ fontSize: "2rem", marginBottom: "8px" }}>📦</div>
-                    <div style={{ fontSize: "2rem", fontWeight: "700", color: "#1e293b" }}>{stats?.total_events || 0}</div>
-                    <div style={{ color: "#64748b", fontSize: "0.9rem" }}>Total Event Diajukan</div>
-                </div>
-                <div style={statCard}>
-                    <div style={{ fontSize: "2rem", marginBottom: "8px" }}>✅</div>
-                    <div style={{ fontSize: "2rem", fontWeight: "700", color: "#10b981" }}>{stats?.approved_events || 0}</div>
-                    <div style={{ color: "#64748b", fontSize: "0.9rem" }}>Event Disetujui</div>
-                </div>
-                <div style={statCard}>
-                    <div style={{ fontSize: "2rem", marginBottom: "8px" }}>🛒</div>
-                    <div style={{ fontSize: "2rem", fontWeight: "700", color: "#3b82f6" }}>{stats?.total_sales || 0}</div>
-                    <div style={{ color: "#64748b", fontSize: "0.9rem" }}>Total Penjualan</div>
-                </div>
-                <div style={statCard}>
-                    <div style={{ fontSize: "2rem", marginBottom: "8px" }}>💵</div>
-                    <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#10b981" }}>
-                        {formatPrice((stats?.total_earnings || 0) + (stats?.pending_earnings || 0))}
-                    </div>
-                    <div style={{ color: "#64748b", fontSize: "0.9rem" }}>Total Pendapatan</div>
-                </div>
-            </div>
-
-            {/* Earnings Breakdown */}
+            {/* Balance Cards - New Design */}
             <div style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
                 gap: "20px",
                 marginBottom: "32px"
             }}>
-                {/* Transferred Earnings */}
+                {/* Total Pendapatan */}
                 <div style={{
-                    background: "linear-gradient(135deg, #d1fae5, #a7f3d0)",
-                    border: "1px solid #6ee7b7",
-                    borderRadius: "12px",
-                    padding: "20px"
+                    background: "linear-gradient(135deg, #10b981, #059669)",
+                    borderRadius: "16px",
+                    padding: "24px",
+                    color: "white"
                 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <span style={{ fontSize: "1.5rem" }}>✅</span>
-                        <div>
-                            <div style={{ fontWeight: "600", color: "#065f46", fontSize: "0.85rem" }}>Sudah Ditransfer Admin</div>
-                            <div style={{ fontSize: "1.25rem", fontWeight: "700", color: "#047857" }}>{formatPrice(stats?.total_earnings)}</div>
-                        </div>
+                    <div style={{ fontSize: "1rem", opacity: 0.9, marginBottom: "8px" }}>💰 Total Pendapatan</div>
+                    <div style={{ fontSize: "1.75rem", fontWeight: "700" }}>
+                        {formatPrice(balance?.total_earned || 0)}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: "4px" }}>
+                        Dari {stats?.total_sales || 0} penjualan
                     </div>
                 </div>
 
-                {/* Pending Earnings */}
+                {/* Saldo Tersedia */}
                 <div style={{
-                    background: "linear-gradient(135deg, #fef3c7, #fde68a)",
-                    border: "1px solid #fcd34d",
-                    borderRadius: "12px",
-                    padding: "20px"
+                    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+                    borderRadius: "16px",
+                    padding: "24px",
+                    color: "white"
                 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <span style={{ fontSize: "1.5rem" }}>⏳</span>
-                        <div>
-                            <div style={{ fontWeight: "600", color: "#92400e", fontSize: "0.85rem" }}>Menunggu Transfer</div>
-                            <div style={{ fontSize: "1.25rem", fontWeight: "700", color: "#b45309" }}>{formatPrice(stats?.pending_earnings)}</div>
-                        </div>
+                    <div style={{ fontSize: "1rem", opacity: 0.9, marginBottom: "8px" }}>💳 Saldo Tersedia</div>
+                    <div style={{ fontSize: "1.75rem", fontWeight: "700" }}>
+                        {formatPrice(balance?.available_balance || 0)}
                     </div>
+                    <div style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: "4px" }}>
+                        Dapat ditarik
+                    </div>
+                </div>
+
+                {/* Total Ditarik */}
+                <div style={{
+                    background: "linear-gradient(135deg, #64748b, #475569)",
+                    borderRadius: "16px",
+                    padding: "24px",
+                    color: "white"
+                }}>
+                    <div style={{ fontSize: "1rem", opacity: 0.9, marginBottom: "8px" }}>📤 Total Ditarik</div>
+                    <div style={{ fontSize: "1.75rem", fontWeight: "700" }}>
+                        {formatPrice(balance?.total_withdrawn || 0)}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: "4px" }}>
+                        Sudah ditransfer
+                    </div>
+                </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px", marginBottom: "32px" }}>
+                <div style={statCard}>
+                    <div style={{ fontSize: "1.5rem", marginBottom: "8px" }}>📦</div>
+                    <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#1e293b" }}>{stats?.total_events || 0}</div>
+                    <div style={{ color: "#64748b", fontSize: "0.85rem" }}>Event Diajukan</div>
+                </div>
+                <div style={statCard}>
+                    <div style={{ fontSize: "1.5rem", marginBottom: "8px" }}>✅</div>
+                    <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#10b981" }}>{stats?.approved_events || 0}</div>
+                    <div style={{ color: "#64748b", fontSize: "0.85rem" }}>Disetujui</div>
+                </div>
+                <div style={statCard}>
+                    <div style={{ fontSize: "1.5rem", marginBottom: "8px" }}>⏳</div>
+                    <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#f59e0b" }}>{stats?.pending_events || 0}</div>
+                    <div style={{ color: "#64748b", fontSize: "0.85rem" }}>Pending</div>
+                </div>
+                <div style={statCard}>
+                    <div style={{ fontSize: "1.5rem", marginBottom: "8px" }}>🛒</div>
+                    <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#3b82f6" }}>{stats?.total_sales || 0}</div>
+                    <div style={{ color: "#64748b", fontSize: "0.85rem" }}>Penjualan</div>
                 </div>
             </div>
 
             {/* Quick Actions */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px" }}>
                 {profileComplete ? (
                     <Link to="/dashboard/affiliate/submit" style={actionCard}>
                         <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>➕</div>
                         <h3 style={{ margin: "0 0 8px 0", color: "#1e293b" }}>Ajukan Event Baru</h3>
                         <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
-                            Kirim event baru dengan materi untuk direview admin
+                            Kirim event baru dengan materi untuk direview
                         </p>
                     </Link>
                 ) : (
@@ -209,7 +226,7 @@ export default function AffiliateDashboard() {
                         <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>🔒</div>
                         <h3 style={{ margin: "0 0 8px 0", color: "#1e293b" }}>Ajukan Event Baru</h3>
                         <p style={{ margin: 0, color: "#ef4444", fontSize: "0.9rem", fontWeight: "500" }}>
-                            Lengkapi profil untuk mengaktifkan fitur ini
+                            Lengkapi profil untuk mengaktifkan
                         </p>
                     </div>
                 )}
@@ -218,44 +235,32 @@ export default function AffiliateDashboard() {
                     <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>📊</div>
                     <h3 style={{ margin: "0 0 8px 0", color: "#1e293b" }}>Event Saya</h3>
                     <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
-                        Lihat semua event dan pendapatan per event
+                        Lihat semua event dan pendapatan
+                    </p>
+                </Link>
+
+                <Link to="/dashboard/affiliate/withdraw" style={{
+                    ...actionCard,
+                    background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+                    border: "2px solid #86efac"
+                }}>
+                    <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>💸</div>
+                    <h3 style={{ margin: "0 0 8px 0", color: "#166534" }}>Tarik Dana</h3>
+                    <p style={{ margin: 0, color: "#15803d", fontSize: "0.9rem" }}>
+                        Saldo: {formatPrice(balance?.available_balance || 0)}
                     </p>
                 </Link>
             </div>
-
-            {/* Pending Events */}
-            {stats?.pending_events > 0 && (
-                <div style={{ marginTop: "32px" }}>
-                    <div style={{
-                        background: "#fff7ed",
-                        border: "1px solid #fed7aa",
-                        borderRadius: "12px",
-                        padding: "20px"
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                            <span style={{ fontSize: "1.5rem" }}>📋</span>
-                            <div>
-                                <div style={{ fontWeight: "600", color: "#9a3412" }}>
-                                    {stats.pending_events} event menunggu review
-                                </div>
-                                <div style={{ color: "#ea580c", fontSize: "0.9rem" }}>
-                                    Admin sedang meninjau pengajuan Anda
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
 
 const statCard = {
     background: "white",
-    borderRadius: "16px",
-    padding: "24px",
+    borderRadius: "12px",
+    padding: "20px",
     textAlign: "center",
-    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.05)",
     border: "1px solid #e2e8f0"
 };
 
@@ -263,7 +268,7 @@ const actionCard = {
     display: "block",
     background: "white",
     borderRadius: "16px",
-    padding: "32px",
+    padding: "28px",
     textAlign: "center",
     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
     border: "1px solid #e2e8f0",

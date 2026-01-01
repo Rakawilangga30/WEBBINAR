@@ -303,7 +303,7 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 		eventResult, err := config.DB.Exec(`
 			INSERT INTO events (organization_id, title, description, category, thumbnail_url, 
 			                    publish_status, affiliate_submission_id)
-			VALUES (?, ?, ?, ?, ?, 'PUBLISHED', ?)
+			VALUES (?, ?, ?, ?, ?, 'DRAFT', ?)
 		`, officialOrgID, submission.EventTitle, description, submission.EventCategory, submission.PosterURL, submission.ID)
 
 		if err != nil {
@@ -317,7 +317,7 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 		// Create session
 		sessionResult, err := config.DB.Exec(`
 			INSERT INTO sessions (event_id, title, description, price, publish_status)
-			VALUES (?, ?, ?, ?, 'PUBLISHED')
+			VALUES (?, ?, ?, ?, 'DRAFT')
 		`, eventID, submission.EventTitle, description, submission.EventPrice)
 
 		if err != nil {
@@ -459,13 +459,13 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 			config.DB.Exec(`
 				INSERT INTO notifications (user_id, title, message)
 				VALUES (?, 'Event Anda Disetujui!', ?)
-			`, *submission.UserID, fmt.Sprintf("Event '%s' telah dipublikasikan dan siap dijual.", submission.EventTitle))
+			`, *submission.UserID, fmt.Sprintf("Event '%s' telah disetujui dan masuk ke draft. Admin akan mempublikasikan segera.", submission.EventTitle))
 		}
 
 		fmt.Printf("[APPROVE] ✅ Created event=%d, session=%d with %d videos and %d files\n", eventID, sessionID, len(videos), len(files))
 
 		c.JSON(http.StatusOK, gin.H{
-			"message":  "Event berhasil dipublikasikan",
+			"message":  "Event berhasil disetujui dan masuk ke draft",
 			"event_id": eventID,
 		})
 

@@ -9,6 +9,8 @@ import LandingPage from "./pages/Dashboard";
 import EventDetail from "./pages/EventDetail";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import AboutUs from "./pages/AboutUs";
+import Report from "./pages/Report";
 
 // PROTECTED PAGES - User
 import DashboardHome from "./pages/DashboardHome";
@@ -21,6 +23,7 @@ import Notifications from "./pages/user/Notifications";
 import AffiliateDashboard from "./pages/affiliate/AffiliateDashboard";
 import AffiliateEvents from "./pages/affiliate/AffiliateEvents";
 import AffiliateSubmitEvent from "./pages/affiliate/AffiliateSubmitEvent";
+import AffiliateWithdrawal from "./pages/affiliate/AffiliateWithdrawal";
 
 // PROTECTED PAGES - Organization
 import MyOrganization from "./pages/org/MyOrganization";
@@ -28,6 +31,7 @@ import ManageEvent from "./pages/org/ManageEvent";
 import CreateEvent from "./pages/org/CreateEvent";
 import OrgEventList from "./pages/org/OrgEventList";
 import EventBuyers from "./pages/org/EventBuyers";
+import OrgWithdrawal from "./pages/org/OrgWithdrawal";
 
 // PROTECTED PAGES - Admin
 import UserList from "./pages/admin/UserList";
@@ -41,6 +45,7 @@ import AdminAffiliateDetail from "./pages/admin/AdminAffiliateDetail";
 import AdminAffiliateLedgers from "./pages/admin/AdminAffiliateLedgers";
 import AdminOfficialOrg from "./pages/admin/AdminOfficialOrg";
 import AdminOfficialOrgEventDetail from "./pages/admin/AdminOfficialOrgEventDetail";
+import AdminReports from "./pages/admin/AdminReports";
 
 function App() {
   return (
@@ -49,6 +54,8 @@ function App() {
         {/* === PUBLIC ROUTES === */}
         <Route path="/" element={<><Navbar /><LandingPage /></>} />
         <Route path="/event/:id" element={<><Navbar /><EventDetail /></>} />
+        <Route path="/about" element={<><Navbar /><AboutUs /></>} />
+        <Route path="/report" element={<><Navbar /><Report /></>} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
@@ -65,6 +72,7 @@ function App() {
           <Route path="affiliate" element={<AffiliateDashboard />} />
           <Route path="affiliate/events" element={<AffiliateEvents />} />
           <Route path="affiliate/submit" element={<AffiliateSubmitEvent />} />
+          <Route path="affiliate/withdraw" element={<AffiliateWithdrawal />} />
 
           {/* Organization Routes */}
           <Route path="org" element={<MyOrganization />} />
@@ -73,6 +81,7 @@ function App() {
           <Route path="org/report/event/:eventId/buyers" element={<EventBuyers />} />
           <Route path="org/create-event" element={<CreateEvent />} />
           <Route path="org/event/:eventID/manage" element={<ManageEvent />} />
+          <Route path="org/withdraw" element={<OrgWithdrawal />} />
 
           {/* Admin Routes */}
           <Route path="admin/users" element={<UserList />} />
@@ -86,6 +95,7 @@ function App() {
           <Route path="admin/affiliate-ledgers" element={<AdminAffiliateLedgers />} />
           <Route path="admin/official-org" element={<AdminOfficialOrg />} />
           <Route path="admin/official-org/events/:eventId" element={<AdminOfficialOrgEventDetail />} />
+          <Route path="admin/reports" element={<AdminReports />} />
         </Route>
 
         {/* 404 */}

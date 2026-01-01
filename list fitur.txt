@@ -1,0 +1,33 @@
+FINISHINNGGG
+
+
+Fitur yang perlu di buat dan perbaiki
+
+fitur utama
+- notifikasi
+perbaiki semua aktifitas ya bu notifikasi lain lain untuk admin user dan org yang kaya gitulah 
+perbaiki ya
+- fitur search untuk event, mencari user (bagian Admin), mencari organisasi
+fitur untuk di home kaya nyari event, nyari organisasi yang nanti muncul profilnya dan bisa
+di klik dan masuk ke landing page
+- fitur keamanan bahan materi 💎
+fitur keamananya untuk bagian materi modul karena masih bisa di download
+- membuat slide banner
+nah untuk fitur slide banner ini untuk yang ada tuh card sambutan nah aku pengen kaya itu bisa nanti memasukan
+event event yang dipilih oleh admin dan bisa di tampilkan di home page dan bisa di edit dan di hapus total event yang bisa di masukan 
+di slide banner 10 event dan nanti bisa diklik dan di arahkan ke dalam eventnya
+- buku besar  
+coba bantu cek lagi jika sudah aman yaudah
+
+fitur pending
+- report (fitur buat melaporkan event atau tentang aplikasi)
+fitur untuk mengirimkan pesan kepad admin untuk apabila ada sebuah hal yang melanggar atau ilegal fitur ini bisa
+di akses oleh organisasi user dan affiliate nanti kaya mengadu apabila ada kendala dan bisa upload foto
+- landing page 
+sudah jelas untuk melihat event dan organisasi kaya gitu lah
+- tombol cepat di dashboard
+lengkapin semua masing masing dashboard bagian tombol cepatnya
+- about us
+about us ini nanti diisi oleh foto saya dan teman saya jadi sediakan saja dulu tampilanya nanti saya yang edit manual
+- informasi pembelian, pendapatan untuk org,affiliate, fitur-fitur admin
+ini cuma perlu di cek apa aja yang kurang di bagian ini

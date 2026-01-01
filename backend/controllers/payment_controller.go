@@ -75,11 +75,36 @@ func GetPaymentToken(c *gin.Context) {
 
 	// Get user details
 	var user struct {
-		Name  string `db:"name"`
-		Email string `db:"email"`
-		Phone string `db:"phone"`
+		Name     string `db:"name"`
+		Email    string `db:"email"`
+		Phone    string `db:"phone"`
+		Username string `db:"username"`
 	}
-	config.DB.Get(&user, "SELECT name, email, COALESCE(phone, '') as phone FROM users WHERE id = ?", userID)
+	config.DB.Get(&user, "SELECT name, email, COALESCE(phone, '') as phone, COALESCE(username, '') as username FROM users WHERE id = ?", userID)
+
+	// Check profile completeness - required: name, phone, email, username
+	var missingFields []string
+	if user.Name == "" {
+		missingFields = append(missingFields, "nama")
+	}
+	if user.Email == "" {
+		missingFields = append(missingFields, "email")
+	}
+	if user.Phone == "" {
+		missingFields = append(missingFields, "nomor telepon")
+	}
+	if user.Username == "" {
+		missingFields = append(missingFields, "username")
+	}
+
+	if len(missingFields) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":              "Lengkapi profil Anda terlebih dahulu sebelum melakukan pembelian",
+			"missing_fields":     missingFields,
+			"profile_incomplete": true,
+		})
+		return
+	}
 
 	// Get event title for item name
 	var eventTitle string
@@ -99,7 +124,19 @@ func GetPaymentToken(c *gin.Context) {
 		return
 	}
 
-	// Create Snap request
+	// Ensure minimum price (Midtrans requires at least 100 rupiah for QRIS)
+	if session.Price < 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Harga minimal Rp 100 untuk pembayaran QRIS"})
+		return
+	}
+
+	// Truncate item name to 50 chars (Midtrans limit)
+	itemName := fmt.Sprintf("%s - %s", eventTitle, session.Title)
+	if len(itemName) > 50 {
+		itemName = itemName[:47] + "..."
+	}
+
+	// Create Snap request - GoPay/QRIS ONLY
 	snapReq := &snap.Request{
 		TransactionDetails: midtrans.TransactionDetails{
 			OrderID:  orderID,
@@ -113,10 +150,14 @@ func GetPaymentToken(c *gin.Context) {
 		Items: &[]midtrans.ItemDetails{
 			{
 				ID:    strconv.FormatInt(session.ID, 10),
-				Name:  fmt.Sprintf("%s - %s", eventTitle, session.Title),
+				Name:  itemName,
 				Price: session.Price,
 				Qty:   1,
 			},
+		},
+		// Only show GoPay (includes QRIS) payment method
+		EnabledPayments: []snap.SnapPaymentType{
+			"gopay",
 		},
 	}
 
@@ -248,7 +289,7 @@ func processSuccessfulPayment(orderID string, grossAmount string) error {
 		return fmt.Errorf("failed to get event info")
 	}
 
-	// If this is an affiliate event, create ledger entry
+	// If this is an affiliate event, create ledger entry AND auto-credit to affiliate balance
 	if affiliateInfo.AffiliateSubmissionID != nil {
 		amount, _ := strconv.ParseFloat(grossAmount, 64)
 		platformFee := amount * 0.10     // 10% platform fee
@@ -257,32 +298,101 @@ func processSuccessfulPayment(orderID string, grossAmount string) error {
 		_, err = tx.Exec(`
 			INSERT INTO affiliate_ledgers 
 			(affiliate_submission_id, order_id, transaction_amount, platform_fee, affiliate_amount, is_paid_out)
-			VALUES (?, ?, ?, ?, ?, 0)
+			VALUES (?, ?, ?, ?, ?, 1)
 		`, *affiliateInfo.AffiliateSubmissionID, orderID, amount, platformFee, affiliateAmount)
 
 		if err != nil {
 			return fmt.Errorf("failed to create affiliate ledger entry")
 		}
 
-		// Notify affiliate about the sale
+		// Get affiliate user ID from submission
 		var affiliateInfo2 struct {
+			UserID     *int64 `db:"user_id"`
 			Email      string `db:"email"`
 			EventTitle string `db:"event_title"`
 		}
 		config.DB.Get(&affiliateInfo2, `
-			SELECT email, event_title FROM affiliate_submissions WHERE id = ?
+			SELECT user_id, email, event_title FROM affiliate_submissions WHERE id = ?
 		`, *affiliateInfo.AffiliateSubmissionID)
 
 		var affiliateUserID int64
-		config.DB.Get(&affiliateUserID, "SELECT id FROM users WHERE email = ?", affiliateInfo2.Email)
+		if affiliateInfo2.UserID != nil {
+			affiliateUserID = *affiliateInfo2.UserID
+		} else {
+			// Fallback to email lookup
+			config.DB.Get(&affiliateUserID, "SELECT id FROM users WHERE email = ?", affiliateInfo2.Email)
+		}
 
+		// AUTO-CREDIT to affiliate_balances
 		if affiliateUserID > 0 {
+			// Upsert affiliate balance
+			_, err = tx.Exec(`
+				INSERT INTO affiliate_balances (user_id, balance, total_earned)
+				VALUES (?, ?, ?)
+				ON DUPLICATE KEY UPDATE 
+					balance = balance + ?,
+					total_earned = total_earned + ?
+			`, affiliateUserID, affiliateAmount, affiliateAmount, affiliateAmount, affiliateAmount)
+
+			if err != nil {
+				fmt.Printf("[PAYMENT] Error crediting affiliate balance: %v\n", err)
+			} else {
+				fmt.Printf("[PAYMENT] ✅ Credited Rp %.0f to affiliate user %d\n", affiliateAmount, affiliateUserID)
+			}
+
+			// Record financial transaction
+			tx.Exec(`
+				INSERT INTO financial_transactions (transaction_type, entity_type, entity_id, amount, description, reference_id)
+				VALUES ('AFFILIATE_CREDIT', 'AFFILIATE', ?, ?, ?, ?)
+			`, affiliateUserID, affiliateAmount, fmt.Sprintf("Penjualan event: %s", affiliateInfo2.EventTitle), orderID)
+
+			// Notify affiliate about the sale
 			CreateNotification(
 				affiliateUserID,
 				"affiliate_sale",
 				"🛒 Penjualan Baru!",
-				fmt.Sprintf("Event \"%s\" terjual! Anda mendapat Rp %.0f", affiliateInfo2.EventTitle, affiliateAmount),
+				fmt.Sprintf("Event \"%s\" terjual! Anda mendapat Rp %.0f (sudah masuk ke saldo)", affiliateInfo2.EventTitle, affiliateAmount),
 			)
+		}
+	} else {
+		// Regular organization event - credit to organization balance
+		amount, _ := strconv.ParseFloat(grossAmount, 64)
+
+		// Get organization ID from session
+		var orgInfo struct {
+			OrgID      int64 `db:"organization_id"`
+			IsOfficial bool  `db:"is_official"`
+		}
+		config.DB.Get(&orgInfo, `
+			SELECT o.id as organization_id, COALESCE(o.is_official, 0) as is_official
+			FROM sessions s
+			JOIN events e ON s.event_id = e.id
+			JOIN organizations o ON e.organization_id = o.id
+			WHERE s.id = ?
+		`, sessionID)
+
+		// Only credit if it's NOT official org (regular org)
+		if orgInfo.OrgID > 0 && !orgInfo.IsOfficial {
+			// Upsert organization balance
+			_, err = tx.Exec(`
+				INSERT INTO organization_balances (organization_id, balance, total_earned)
+				VALUES (?, ?, ?)
+				ON DUPLICATE KEY UPDATE 
+					balance = balance + ?,
+					total_earned = total_earned + ?
+			`, orgInfo.OrgID, amount, amount, amount, amount)
+
+			if err != nil {
+				fmt.Printf("[PAYMENT] Error crediting org balance: %v\n", err)
+			} else {
+				fmt.Printf("[PAYMENT] ✅ Credited Rp %.0f to organization %d\n", amount, orgInfo.OrgID)
+			}
+
+			// Record financial transaction
+			tx.Exec(`
+				INSERT INTO financial_transactions (transaction_type, entity_type, entity_id, amount, description, reference_id)
+				VALUES ('SALE', 'ORGANIZATION', ?, ?, ?, ?)
+			`, orgInfo.OrgID, amount, fmt.Sprintf("Penjualan sesi ID %d", sessionID), orderID)
 		}
 	}
 
@@ -340,5 +450,92 @@ func GetMidtransConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"client_key": config.GetMidtransClientKey(),
 		"is_sandbox": true,
+	})
+}
+
+// CheckPaymentStatus manually checks and updates payment status from Midtrans
+// This is useful for localhost testing where webhook doesn't work
+// POST /api/user/payment/check-status
+func CheckPaymentStatus(c *gin.Context) {
+	var input struct {
+		OrderID string `json:"order_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order_id is required"})
+		return
+	}
+
+	// Check if purchase exists
+	var purchase struct {
+		ID     int64  `db:"id"`
+		Status string `db:"status"`
+	}
+	err := config.DB.Get(&purchase, "SELECT id, status FROM purchases WHERE order_id = ?", input.OrderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+		return
+	}
+
+	// If already PAID, no need to check
+	if purchase.Status == "PAID" {
+		c.JSON(http.StatusOK, gin.H{
+			"order_id": input.OrderID,
+			"status":   "PAID",
+			"message":  "Pembayaran sudah berhasil",
+		})
+		return
+	}
+
+	// For localhost testing, just return current status and suggest simulation
+	c.JSON(http.StatusOK, gin.H{
+		"order_id":       input.OrderID,
+		"current_status": purchase.Status,
+		"message":        "Untuk testing di localhost, gunakan endpoint /api/user/payment/simulate-success dengan order_id ini",
+	})
+}
+
+// SimulatePaymentSuccess - FOR SANDBOX TESTING ONLY
+// This simulates a successful payment for localhost testing
+// POST /api/user/payment/simulate-success
+func SimulatePaymentSuccess(c *gin.Context) {
+	var input struct {
+		OrderID string `json:"order_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order_id is required"})
+		return
+	}
+
+	// Check if purchase exists and is PENDING
+	var purchase struct {
+		ID        int64   `db:"id"`
+		Status    string  `db:"status"`
+		PricePaid float64 `db:"price_paid"`
+	}
+	err := config.DB.Get(&purchase, "SELECT id, status, price_paid FROM purchases WHERE order_id = ?", input.OrderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+		return
+	}
+
+	if purchase.Status == "PAID" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order already paid"})
+		return
+	}
+
+	// Simulate successful payment
+	grossAmount := fmt.Sprintf("%.2f", purchase.PricePaid)
+	err = processSuccessfulPayment(input.OrderID, grossAmount)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process payment: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Pembayaran berhasil disimulasikan (SANDBOX ONLY)",
+		"order_id": input.OrderID,
+		"status":   "PAID",
 	})
 }

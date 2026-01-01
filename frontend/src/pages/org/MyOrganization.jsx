@@ -783,3 +783,18 @@ const inputStyle = {
     fontSize: "0.95rem",
     boxSizing: "border-box"
 };
+
+const quickActionStyle = {
+    display: 'block',
+    width: '100%',
+    background: 'white',
+    borderRadius: '16px',
+    padding: '24px',
+    textAlign: 'center',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #e2e8f0',
+    textDecoration: 'none',
+    cursor: 'pointer',
+    transition: 'transform 0.2s ease',
+    color: 'inherit'
+};

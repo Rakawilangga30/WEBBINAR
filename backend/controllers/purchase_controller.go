@@ -54,11 +54,16 @@ func BuySession(c *gin.Context) {
 		return
 	}
 
-	// Insert new purchase record
+	// Insert new purchase record - FREE sessions get PAID status immediately
+	status := "PAID" // For free sessions, mark as PAID immediately
+	if price > 0 {
+		status = "PENDING" // For paid sessions, will be updated by Midtrans webhook
+	}
+
 	_, err = config.DB.Exec(`
-		INSERT INTO purchases (user_id, session_id, price_paid) 
-		VALUES (?, ?, ?)
-	`, userID, sessionID, price)
+		INSERT INTO purchases (user_id, session_id, price_paid, status) 
+		VALUES (?, ?, ?, ?)
+	`, userID, sessionID, price, status)
 
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to complete purchase"})
@@ -126,7 +131,7 @@ func MyPurchases(c *gin.Context) {
 		FROM purchases p
 		JOIN sessions s ON p.session_id = s.id
 		JOIN events e ON s.event_id = e.id
-		WHERE p.user_id = ?
+		WHERE p.user_id = ? AND p.status = 'PAID'
 		ORDER BY p.purchased_at DESC
 	`, userID)
 
@@ -160,11 +165,11 @@ func CheckSessionPurchase(c *gin.Context) {
 		return
 	}
 
-	// 2. Cek apakah user sudah membeli
+	// 2. Cek apakah user sudah membeli DAN status PAID
 	var count int
 	err = config.DB.Get(&count, `
 		SELECT COUNT(*) FROM purchases 
-		WHERE user_id = ? AND session_id = ?
+		WHERE user_id = ? AND session_id = ? AND status = 'PAID'
 	`, userID, sessionID)
 
 	if err != nil {

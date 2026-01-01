@@ -77,7 +77,7 @@ export default function AdminAffiliateDetail() {
     if (processing) return;
 
     const confirmMsg = action === 'APPROVE'
-      ? 'Yakin ingin MENYETUJUI pengajuan ini? Event akan langsung dipublikasikan.'
+      ? 'Yakin ingin MENYETUJUI pengajuan ini? Event akan disimpan ke draft.'
       : 'Yakin ingin MENOLAK pengajuan ini?';
 
     if (!window.confirm(confirmMsg)) return;
@@ -90,7 +90,7 @@ export default function AdminAffiliateDetail() {
       });
 
       alert(action === 'APPROVE'
-        ? `Event berhasil dipublikasikan! Event ID: ${response.data.event_id}`
+        ? `Event berhasil disimpan ke draft! Event ID: ${response.data.event_id}`
         : 'Pengajuan telah ditolak.');
 
       navigate('/dashboard/admin/affiliates');
@@ -375,7 +375,7 @@ export default function AdminAffiliateDetail() {
                 onClick={() => handleReview('APPROVE')}
                 disabled={processing}
               >
-                ✅ Setujui & Publikasikan
+                ✅ Setujui & Simpan ke Draft
               </button>
             </div>
           </div>

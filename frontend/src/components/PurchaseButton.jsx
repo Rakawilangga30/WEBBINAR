@@ -17,120 +17,154 @@ import api from '../api';
  * @param {string} props.className - Additional CSS classes
  */
 export default function PurchaseButton({
-    sessionId,
-    sessionName,
-    price,
-    onSuccess,
-    onPending,
-    onError,
-    disabled = false,
-    className = ''
+  sessionId,
+  sessionName,
+  price,
+  onSuccess,
+  onPending,
+  onError,
+  disabled = false,
+  className = ''
 }) {
-    const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-    const formatPrice = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount);
-    };
+  const formatPrice = (amount) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
 
-    const handlePurchase = async () => {
-        if (loading || disabled) return;
+  const handlePurchase = async () => {
+    if (loading || disabled) return;
 
-        // Check if user is logged in
-        const token = localStorage.getItem('token');
-        if (!token) {
-            alert('Silakan login terlebih dahulu untuk membeli');
-            window.location.href = '/login';
-            return;
-        }
+    // Check if user is logged in
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Silakan login terlebih dahulu untuk membeli');
+      window.location.href = '/login';
+      return;
+    }
 
-        setLoading(true);
+    setLoading(true);
 
-        try {
-            // Get payment token from backend
-            const response = await api.post('/user/payment/token', {
-                session_id: sessionId
-            });
+    try {
+      // Get payment token from backend
+      const response = await api.post('/user/payment/token', {
+        session_id: sessionId
+      });
 
-            const { token: snapToken, order_id } = response.data;
+      const { token: snapToken, order_id } = response.data;
 
-            // Check if Snap is available
-            if (!window.snap) {
-                throw new Error('Midtrans Snap tidak tersedia. Silakan refresh halaman.');
+      // Check if Snap is available
+      if (!window.snap) {
+        throw new Error('Midtrans Snap tidak tersedia. Silakan refresh halaman.');
+      }
+
+      // Open Snap payment popup
+      window.snap.pay(snapToken, {
+        onSuccess: async function (result) {
+          console.log('Payment success:', result);
+
+          // Simulate success for sandbox (auto-update status)
+          try {
+            await api.post('/sandbox/simulate-payment', { order_id: order_id });
+          } catch (e) {
+            console.log('Sandbox simulate:', e);
+          }
+
+          setLoading(false);
+          if (onSuccess) {
+            onSuccess(result, order_id);
+          } else {
+            alert('Pembayaran berhasil! Terima kasih atas pembelian Anda.');
+            window.location.reload();
+          }
+        },
+        onPending: function (result) {
+          console.log('Payment pending:', result);
+          setLoading(false);
+          if (onPending) {
+            onPending(result, order_id);
+          } else {
+            alert('Pembayaran menunggu verifikasi. Silakan selesaikan pembayaran Anda.');
+          }
+        },
+        onError: function (result) {
+          console.error('Payment error:', result);
+          setLoading(false);
+          if (onError) {
+            onError(result, order_id);
+          } else {
+            alert('Pembayaran gagal. Silakan coba lagi.');
+          }
+        },
+        onClose: async function () {
+          console.log('Payment popup closed');
+          setLoading(false);
+
+          // For sandbox: try to simulate success when popup is closed
+          // This handles cases where user paid via QRIS but didn't click "Selesai"
+          try {
+            await api.post('/sandbox/simulate-payment', { order_id: order_id });
+            console.log('Sandbox: Auto-simulated payment success');
+            // Refresh to check if payment went through
+            if (window.confirm('Apakah Anda sudah menyelesaikan pembayaran? Klik OK untuk refresh.')) {
+              window.location.reload();
             }
-
-            // Open Snap payment popup
-            window.snap.pay(snapToken, {
-                onSuccess: function (result) {
-                    console.log('Payment success:', result);
-                    setLoading(false);
-                    if (onSuccess) {
-                        onSuccess(result, order_id);
-                    } else {
-                        alert('Pembayaran berhasil! Terima kasih atas pembelian Anda.');
-                        window.location.reload();
-                    }
-                },
-                onPending: function (result) {
-                    console.log('Payment pending:', result);
-                    setLoading(false);
-                    if (onPending) {
-                        onPending(result, order_id);
-                    } else {
-                        alert('Pembayaran menunggu verifikasi. Silakan selesaikan pembayaran Anda.');
-                    }
-                },
-                onError: function (result) {
-                    console.error('Payment error:', result);
-                    setLoading(false);
-                    if (onError) {
-                        onError(result, order_id);
-                    } else {
-                        alert('Pembayaran gagal. Silakan coba lagi.');
-                    }
-                },
-                onClose: function () {
-                    console.log('Payment popup closed');
-                    setLoading(false);
-                }
-            });
-
-        } catch (error) {
-            console.error('Error getting payment token:', error);
-            setLoading(false);
-
-            const errorMessage = error.response?.data?.error || error.message || 'Gagal memproses pembayaran';
-
-            if (onError) {
-                onError({ message: errorMessage });
-            } else {
-                alert(errorMessage);
-            }
+          } catch (e) {
+            console.log('Sandbox simulate on close:', e.response?.data || e.message);
+          }
         }
-    };
+      });
 
-    return (
-        <button
-            className={`purchase-button ${className} ${loading ? 'loading' : ''}`}
-            onClick={handlePurchase}
-            disabled={loading || disabled}
-        >
-            {loading ? (
-                <span className="loading-content">
-                    <span className="spinner"></span>
-                    Memproses...
-                </span>
-            ) : (
-                <span className="button-content">
-                    <span className="price-tag">{formatPrice(price)}</span>
-                    <span className="buy-text">Beli Sekarang</span>
-                </span>
-            )}
+    } catch (error) {
+      console.error('Error getting payment token:', error);
+      setLoading(false);
 
-            <style>{`
+      const errorData = error.response?.data;
+
+      // Check if profile is incomplete
+      if (errorData?.profile_incomplete) {
+        const missingFields = errorData.missing_fields?.join(', ') || '';
+        const message = `${errorData.error}\n\nField yang belum lengkap: ${missingFields}\n\nAnda akan diarahkan ke halaman profil untuk melengkapi data.`;
+
+        if (window.confirm(message)) {
+          window.location.href = '/dashboard/profile';
+        }
+        return;
+      }
+
+      const errorMessage = errorData?.error || error.message || 'Gagal memproses pembayaran';
+
+      if (onError) {
+        onError({ message: errorMessage });
+      } else {
+        alert(errorMessage);
+      }
+    }
+  };
+
+  return (
+    <button
+      className={`purchase-button ${className} ${loading ? 'loading' : ''}`}
+      onClick={handlePurchase}
+      disabled={loading || disabled}
+    >
+      {loading ? (
+        <span className="loading-content">
+          <span className="spinner"></span>
+          Memproses...
+        </span>
+      ) : (
+        <span className="button-content">
+          <span className="price-tag">{formatPrice(price)}</span>
+          <span className="buy-text">Beli Sekarang</span>
+        </span>
+      )}
+
+      <style>{`
         .purchase-button {
           display: inline-flex;
           align-items: center;
@@ -220,7 +254,12 @@ export default function PurchaseButton({
         .purchase-button.compact .buy-text {
           display: none;
         }
+
+        /* Full width variant */
+        .purchase-button.full-width {
+          width: 100%;
+        }
       `}</style>
-        </button>
-    );
+    </button>
+  );
 }
