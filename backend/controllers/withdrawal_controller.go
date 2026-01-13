@@ -23,15 +23,23 @@ func RequestOrgWithdrawal(c *gin.Context) {
 
 	// Get organization owned by user
 	var org struct {
-		ID      int64   `db:"id"`
-		Name    string  `db:"name"`
-		Balance float64 `db:"balance"`
+		ID   int64  `db:"id"`
+		Name string `db:"name"`
 	}
-	err := config.DB.Get(&org, "SELECT id, name, COALESCE(balance, 0) as balance FROM organizations WHERE owner_user_id = ?", userID)
+	err := config.DB.Get(&org, "SELECT id, name FROM organizations WHERE owner_user_id = ?", userID)
 	if err != nil {
+		fmt.Printf("[ORG-WITHDRAW] Organization not found for user %d: %v\n", userID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Organisasi tidak ditemukan"})
 		return
 	}
+
+	// Get balance from organization_balances table
+	var balance float64
+	config.DB.Get(&balance, `
+		SELECT COALESCE(balance, 0) FROM organization_balances WHERE organization_id = ?
+	`, org.ID)
+
+	fmt.Printf("[ORG-WITHDRAW] orgID=%d, name=%s, balance=%.0f\n", org.ID, org.Name, balance)
 
 	var input struct {
 		Amount          float64 `json:"amount" binding:"required"`
@@ -50,22 +58,37 @@ func RequestOrgWithdrawal(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Jumlah penarikan harus lebih dari 0"})
 		return
 	}
-	if input.Amount > org.Balance {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Saldo tidak cukup. Saldo Anda: Rp %.0f", org.Balance)})
+	if input.Amount > balance {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Saldo tidak cukup. Saldo Anda: Rp %.0f", balance)})
 		return
 	}
 
-	// Check if already requested this month
-	var existingCount int
-	config.DB.Get(&existingCount, `
+	// Check if already has an active (PENDING or APPROVED) request this month
+	var activeCount int
+	config.DB.Get(&activeCount, `
+		SELECT COUNT(*) FROM withdrawal_requests 
+		WHERE requester_type = 'ORGANIZATION' 
+		AND requester_id = ? 
+		AND status IN ('PENDING', 'APPROVED')
+		AND MONTH(created_at) = MONTH(NOW()) 
+		AND YEAR(created_at) = YEAR(NOW())
+	`, org.ID)
+	if activeCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Anda sudah memiliki permintaan penarikan aktif bulan ini. Tunggu hingga diproses atau bulan depan."})
+		return
+	}
+
+	// Check total attempts this month (max 7, including rejected)
+	var totalAttempts int
+	config.DB.Get(&totalAttempts, `
 		SELECT COUNT(*) FROM withdrawal_requests 
 		WHERE requester_type = 'ORGANIZATION' 
 		AND requester_id = ? 
 		AND MONTH(created_at) = MONTH(NOW()) 
 		AND YEAR(created_at) = YEAR(NOW())
 	`, org.ID)
-	if existingCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Anda sudah mengajukan penarikan bulan ini. Penarikan hanya bisa dilakukan 1x per bulan (reset tiap tanggal 1)."})
+	if totalAttempts >= 7 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Anda sudah mencapai batas maksimal 7 percobaan penarikan bulan ini."})
 		return
 	}
 
@@ -104,9 +127,32 @@ func RequestOrgWithdrawal(c *gin.Context) {
 func RequestAffiliateWithdrawal(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
-	// Get affiliate balance
-	var balance float64
-	config.DB.Get(&balance, "SELECT COALESCE(balance, 0) FROM users WHERE id = ?", userID)
+	// Get affiliate balance from affiliate_balances table (same as GetAffiliateBalance)
+	var balanceData struct {
+		TotalEarned    float64 `db:"total_earned"`
+		TotalWithdrawn float64 `db:"total_withdrawn"`
+	}
+	err := config.DB.Get(&balanceData, `
+		SELECT COALESCE(total_earned, 0) as total_earned, 
+		       COALESCE(total_withdrawn, 0) as total_withdrawn
+		FROM affiliate_balances WHERE user_id = ?
+	`, userID)
+
+	// Calculate available balance
+	var availableBalance float64
+	if err != nil {
+		// No balance record yet - calculate from ledger
+		config.DB.Get(&availableBalance, `
+			SELECT COALESCE(SUM(al.affiliate_amount), 0)
+			FROM affiliate_ledgers al
+			JOIN affiliate_submissions asub ON al.affiliate_submission_id = asub.id
+			WHERE asub.user_id = ?
+		`, userID)
+	} else {
+		availableBalance = balanceData.TotalEarned - balanceData.TotalWithdrawn
+	}
+
+	fmt.Printf("[AFFILIATE-WITHDRAW] userID=%d, available_balance=%.0f\n", userID, availableBalance)
 
 	var input struct {
 		Amount          float64 `json:"amount" binding:"required"`
@@ -125,27 +171,42 @@ func RequestAffiliateWithdrawal(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Jumlah penarikan harus lebih dari 0"})
 		return
 	}
-	if input.Amount > balance {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Saldo tidak cukup. Saldo Anda: Rp %.0f", balance)})
+	if input.Amount > availableBalance {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Saldo tidak cukup. Saldo Anda: Rp %.0f", availableBalance)})
 		return
 	}
 
-	// Check if already requested this month
-	var existingCount int
-	config.DB.Get(&existingCount, `
+	// Check if already has an active (PENDING or APPROVED) request this month
+	var activeCount int
+	config.DB.Get(&activeCount, `
+		SELECT COUNT(*) FROM withdrawal_requests 
+		WHERE requester_type = 'AFFILIATE' 
+		AND requester_id = ? 
+		AND status IN ('PENDING', 'APPROVED')
+		AND MONTH(created_at) = MONTH(NOW()) 
+		AND YEAR(created_at) = YEAR(NOW())
+	`, userID)
+	if activeCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Anda sudah memiliki permintaan penarikan aktif bulan ini. Tunggu hingga diproses atau bulan depan."})
+		return
+	}
+
+	// Check total attempts this month (max 7, including rejected)
+	var totalAttempts int
+	config.DB.Get(&totalAttempts, `
 		SELECT COUNT(*) FROM withdrawal_requests 
 		WHERE requester_type = 'AFFILIATE' 
 		AND requester_id = ? 
 		AND MONTH(created_at) = MONTH(NOW()) 
 		AND YEAR(created_at) = YEAR(NOW())
 	`, userID)
-	if existingCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Anda sudah mengajukan penarikan bulan ini. Penarikan hanya bisa dilakukan 1x per bulan (reset tiap tanggal 1)."})
+	if totalAttempts >= 7 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Anda sudah mencapai batas maksimal 7 percobaan penarikan bulan ini."})
 		return
 	}
 
 	// Insert withdrawal request
-	_, err := config.DB.Exec(`
+	_, err = config.DB.Exec(`
 		INSERT INTO withdrawal_requests (requester_type, requester_id, amount, bank_name, bank_account, bank_account_name, notes)
 		VALUES ('AFFILIATE', ?, ?, ?, ?, ?, ?)
 	`, userID, input.Amount, input.BankName, input.BankAccount, input.BankAccountName, input.Notes)
@@ -332,9 +393,19 @@ func ApproveWithdrawalRequest(c *gin.Context) {
 
 	// Deduct balance
 	if request.RequesterType == "ORGANIZATION" {
-		_, err = tx.Exec("UPDATE organizations SET balance = balance - ? WHERE id = ?", request.Amount, request.RequesterID)
+		// Update organization_balances table
+		_, err = tx.Exec(`
+			UPDATE organization_balances 
+			SET balance = balance - ?, total_withdrawn = total_withdrawn + ?
+			WHERE organization_id = ?
+		`, request.Amount, request.Amount, request.RequesterID)
 	} else {
-		_, err = tx.Exec("UPDATE users SET balance = balance - ? WHERE id = ?", request.Amount, request.RequesterID)
+		// Update affiliate_balances table
+		_, err = tx.Exec(`
+			UPDATE affiliate_balances 
+			SET total_withdrawn = total_withdrawn + ?
+			WHERE user_id = ?
+		`, request.Amount, request.RequesterID)
 	}
 	if err != nil {
 		tx.Rollback()

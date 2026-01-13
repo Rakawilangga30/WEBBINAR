@@ -104,7 +104,7 @@ export default function CreateEvent() {
                             value={title}
                             onChange={e => setTitle(e.target.value)}
                             style={inputStyle}
-                            placeholder="Contoh: Webinar Belajar Golang Dasar"
+                            placeholder="Contoh: Kursus Belajar Golang Dasar"
                         />
                     </div>
 

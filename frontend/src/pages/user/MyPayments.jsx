@@ -237,21 +237,23 @@ export default function MyPayments() {
 
                                 {/* Continue Payment Button for PENDING payments */}
                                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                                    <button
-                                        onClick={() => handleContinuePayment(payment.snap_token, payment.order_id)}
-                                        style={{
-                                            padding: "8px 16px",
-                                            background: "linear-gradient(135deg, #f59e0b, #d97706)",
-                                            color: "white",
-                                            border: "none",
-                                            borderRadius: "6px",
-                                            cursor: "pointer",
-                                            fontWeight: "600",
-                                            fontSize: "0.85rem"
-                                        }}
-                                    >
-                                        💳 Lanjutkan Bayar
-                                    </button>
+                                    {payment.status === "PENDING" && payment.snap_token && (
+                                        <button
+                                            onClick={() => handleContinuePayment(payment.snap_token, payment.order_id)}
+                                            style={{
+                                                padding: "8px 16px",
+                                                background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                                                color: "white",
+                                                border: "none",
+                                                borderRadius: "6px",
+                                                cursor: "pointer",
+                                                fontWeight: "600",
+                                                fontSize: "0.85rem"
+                                            }}
+                                        >
+                                            💳 Lanjutkan Bayar
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* View Course Button for PAID payments */}

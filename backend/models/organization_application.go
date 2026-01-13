@@ -3,8 +3,8 @@ package models
 import "time"
 
 type OrganizationApplication struct {
-	ID            int64     `db:"id" json:"id"`
-	UserID        int64     `db:"user_id" json:"user_id"`
+	ID     int64 `db:"id" json:"id"`
+	UserID int64 `db:"user_id" json:"user_id"`
 
 	OrgName        string `db:"org_name" json:"org_name"`
 	OrgDescription string `db:"org_description" json:"org_description"`
@@ -18,10 +18,15 @@ type OrganizationApplication struct {
 	Reason      string `db:"reason" json:"reason"`
 	SocialMedia string `db:"social_media" json:"social_media"`
 
+	// Bank info for withdrawal
+	BankName        string `db:"bank_name" json:"bank_name"`
+	BankAccount     string `db:"bank_account" json:"bank_account"`
+	BankAccountName string `db:"bank_account_name" json:"bank_account_name"`
+
 	Status     string     `db:"status" json:"status"`
 	ReviewedBy *int64     `db:"reviewed_by" json:"reviewed_by,omitempty"`
 	ReviewedAt *time.Time `db:"reviewed_at" json:"reviewed_at,omitempty"`
-	ReviewNote *string    `db:"review_note" json:"review_note,omitempty"`
+	ReviewNote string     `db:"review_note" json:"review_note"`
 
 	SubmittedAt time.Time `db:"submitted_at" json:"submitted_at"`
 }

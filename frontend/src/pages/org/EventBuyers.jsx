@@ -5,8 +5,10 @@ import api from "../../api";
 export default function EventBuyers() {
     const { eventId } = useParams();
     const [eventTitle, setEventTitle] = useState("");
-    const [buyers, setBuyers] = useState([]);
+    const [purchases, setPurchases] = useState([]);
+    const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [expandedBuyers, setExpandedBuyers] = useState({});
 
     useEffect(() => {
         fetchBuyers();
@@ -14,9 +16,10 @@ export default function EventBuyers() {
 
     const fetchBuyers = async () => {
         try {
-            // Fetch buyers
+            // Fetch purchases with details
             const res = await api.get(`/organization/events/${eventId}/buyers`);
-            setBuyers(res.data.buyers || []);
+            setPurchases(res.data.purchases || []);
+            setSummary(res.data.summary || null);
 
             // Get event title from report
             const reportRes = await api.get("/organization/report");
@@ -30,6 +33,63 @@ export default function EventBuyers() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return "-";
+        const date = new Date(dateStr);
+        return date.toLocaleDateString("id-ID", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    };
+
+    // Group purchases by buyer
+    const groupedBuyers = purchases.reduce((acc, p) => {
+        const key = p.user_id;
+        if (!acc[key]) {
+            acc[key] = {
+                user_id: p.user_id,
+                user_name: p.user_name,
+                user_email: p.user_email,
+                user_phone: p.user_phone,
+                sessions: [],
+                total_paid: 0,
+                total_commission: 0,
+                total_net: 0,
+                first_purchase: p.purchased_at
+            };
+        }
+        acc[key].sessions.push({
+            session_id: p.session_id,
+            session_title: p.session_title,
+            price_paid: p.price_paid,
+            affiliate_code: p.affiliate_code,
+            affiliate_name: p.affiliate_name,
+            commission_pct: p.commission_pct,
+            commission_amount: p.commission_amount,
+            net_amount: p.net_amount,
+            purchased_at: p.purchased_at,
+            payment_status: p.payment_status
+        });
+        if (p.payment_status === "PAID") {
+            acc[key].total_paid += p.price_paid;
+            acc[key].total_commission += p.commission_amount;
+            acc[key].total_net += p.net_amount;
+        }
+        return acc;
+    }, {});
+
+    const buyers = Object.values(groupedBuyers);
+
+    const toggleBuyer = (userId) => {
+        setExpandedBuyers(prev => ({
+            ...prev,
+            [userId]: !prev[userId]
+        }));
     };
 
     if (loading) {
@@ -69,7 +129,7 @@ export default function EventBuyers() {
                     </p>
                 </div>
                 <Link
-                    to="/dashboard/org/report"
+                    to="/dashboard/org/events"
                     style={{
                         padding: "10px 18px",
                         background: "white",
@@ -89,46 +149,75 @@ export default function EventBuyers() {
             </div>
 
             {/* Summary Cards */}
-            <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: "16px",
-                marginBottom: "24px"
-            }}>
-                {/* Total Buyers */}
+            {summary && (
                 <div style={{
-                    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
-                    borderRadius: "12px",
-                    padding: "20px",
-                    color: "white",
-                    boxShadow: "0 4px 6px -1px rgba(59, 130, 246, 0.3)"
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: "16px",
+                    marginBottom: "24px"
                 }}>
-                    <div style={{ fontSize: "0.85rem", opacity: 0.9, marginBottom: "4px" }}>
-                        👥 Total Pembeli
+                    <div style={{
+                        background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+                        borderRadius: "12px",
+                        padding: "20px",
+                        color: "white"
+                    }}>
+                        <div style={{ fontSize: "0.8rem", opacity: 0.9, marginBottom: "4px" }}>
+                            👥 Total Pembeli
+                        </div>
+                        <div style={{ fontSize: "1.5rem", fontWeight: "700" }}>
+                            {buyers.length} orang
+                        </div>
+                        <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>
+                            {summary.paid_count} lunas, {summary.pending_count} pending
+                        </div>
                     </div>
-                    <div style={{ fontSize: "2rem", fontWeight: "700" }}>
-                        {buyers.length} orang
+
+                    <div style={{
+                        background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                        borderRadius: "12px",
+                        padding: "20px",
+                        color: "white"
+                    }}>
+                        <div style={{ fontSize: "0.8rem", opacity: 0.9, marginBottom: "4px" }}>
+                            💰 Pendapatan Kotor
+                        </div>
+                        <div style={{ fontSize: "1.5rem", fontWeight: "700" }}>
+                            Rp {(summary.gross_revenue || 0).toLocaleString()}
+                        </div>
+                    </div>
+
+                    <div style={{
+                        background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                        borderRadius: "12px",
+                        padding: "20px",
+                        color: "white"
+                    }}>
+                        <div style={{ fontSize: "0.8rem", opacity: 0.9, marginBottom: "4px" }}>
+                            🤝 Komisi Affiliate
+                        </div>
+                        <div style={{ fontSize: "1.5rem", fontWeight: "700" }}>
+                            - Rp {(summary.total_commission || 0).toLocaleString()}
+                        </div>
+                    </div>
+
+                    <div style={{
+                        background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                        borderRadius: "12px",
+                        padding: "20px",
+                        color: "white"
+                    }}>
+                        <div style={{ fontSize: "0.8rem", opacity: 0.9, marginBottom: "4px" }}>
+                            ✨ Pendapatan Bersih
+                        </div>
+                        <div style={{ fontSize: "1.5rem", fontWeight: "700" }}>
+                            Rp {(summary.net_revenue || 0).toLocaleString()}
+                        </div>
                     </div>
                 </div>
+            )}
 
-                {/* Total Revenue */}
-                <div style={{
-                    background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                    borderRadius: "12px",
-                    padding: "20px",
-                    color: "white",
-                    boxShadow: "0 4px 6px -1px rgba(34, 197, 94, 0.3)"
-                }}>
-                    <div style={{ fontSize: "0.85rem", opacity: 0.9, marginBottom: "4px" }}>
-                        💰 Total Pendapatan Event
-                    </div>
-                    <div style={{ fontSize: "2rem", fontWeight: "700" }}>
-                        Rp {buyers.reduce((sum, b) => sum + (b.total_paid || 0), 0).toLocaleString()}
-                    </div>
-                </div>
-            </div>
-
-            {/* Buyers Table */}
+            {/* Buyers List */}
             <div style={{
                 background: "white",
                 borderRadius: "12px",
@@ -146,52 +235,128 @@ export default function EventBuyers() {
                         </p>
                     </div>
                 ) : (
-                    <div style={{ overflowX: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                            <thead>
-                                <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                                    <th style={{ padding: "14px 20px", textAlign: "left", fontWeight: "600", color: "#64748b", fontSize: "0.85rem" }}>
-                                        Nama
-                                    </th>
-                                    <th style={{ padding: "14px 20px", textAlign: "left", fontWeight: "600", color: "#64748b", fontSize: "0.85rem" }}>
-                                        Email
-                                    </th>
-                                    <th style={{ padding: "14px 20px", textAlign: "center", fontWeight: "600", color: "#64748b", fontSize: "0.85rem" }}>
-                                        Jumlah Sesi
-                                    </th>
-                                    <th style={{ padding: "14px 20px", textAlign: "right", fontWeight: "600", color: "#64748b", fontSize: "0.85rem" }}>
-                                        Total Bayar
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {buyers.map((buyer, idx) => (
-                                    <tr key={idx} style={{ borderBottom: idx < buyers.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                                        <td style={{ padding: "14px 20px", color: "#1e293b", fontWeight: "500" }}>
+                    <div>
+                        {buyers.map((buyer, idx) => (
+                            <div key={buyer.user_id} style={{ borderBottom: idx < buyers.length - 1 ? "1px solid #e2e8f0" : "none" }}>
+                                {/* Buyer Header - Clickable */}
+                                <div
+                                    onClick={() => toggleBuyer(buyer.user_id)}
+                                    style={{
+                                        padding: "16px 20px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "16px",
+                                        cursor: "pointer",
+                                        background: expandedBuyers[buyer.user_id] ? "#f8fafc" : "white",
+                                        transition: "background 0.2s"
+                                    }}
+                                >
+                                    {/* Expand Icon */}
+                                    <div style={{
+                                        width: "24px",
+                                        height: "24px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        background: "#e2e8f0",
+                                        borderRadius: "6px",
+                                        fontSize: "0.8rem",
+                                        transition: "transform 0.2s",
+                                        transform: expandedBuyers[buyer.user_id] ? "rotate(90deg)" : "rotate(0deg)"
+                                    }}>
+                                        ▶
+                                    </div>
+
+                                    {/* User Info */}
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "0.95rem" }}>
                                             {buyer.user_name}
-                                        </td>
-                                        <td style={{ padding: "14px 20px", color: "#64748b" }}>
-                                            {buyer.user_email}
-                                        </td>
-                                        <td style={{ padding: "14px 20px", textAlign: "center" }}>
-                                            <span style={{
-                                                background: "#dbeafe",
-                                                color: "#3b82f6",
-                                                padding: "4px 12px",
-                                                borderRadius: "20px",
-                                                fontSize: "0.85rem",
-                                                fontWeight: "600"
-                                            }}>
-                                                {buyer.sessions_count} sesi
+                                        </div>
+                                        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "4px" }}>
+                                            <span style={{ color: "#64748b", fontSize: "0.85rem" }}>
+                                                📧 {buyer.user_email}
                                             </span>
-                                        </td>
-                                        <td style={{ padding: "14px 20px", textAlign: "right", color: "#16a34a", fontWeight: "600" }}>
-                                            Rp {buyer.total_paid?.toLocaleString()}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                            {buyer.user_phone && (
+                                                <span style={{ color: "#64748b", fontSize: "0.85rem" }}>
+                                                    📱 {buyer.user_phone}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Summary */}
+                                    <div style={{ textAlign: "right" }}>
+                                        <div style={{ color: "#22c55e", fontWeight: "600" }}>
+                                            Rp {buyer.total_net.toLocaleString()}
+                                        </div>
+                                        <div style={{ color: "#64748b", fontSize: "0.8rem" }}>
+                                            {buyer.sessions.length} sesi
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Expanded Sessions */}
+                                {expandedBuyers[buyer.user_id] && (
+                                    <div style={{ background: "#f8fafc", padding: "0 20px 16px 60px" }}>
+                                        <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "8px", fontWeight: "500" }}>
+                                            Sesi yang dibeli:
+                                        </div>
+                                        <div style={{ display: "grid", gap: "8px" }}>
+                                            {buyer.sessions.map((sess, sidx) => (
+                                                <div
+                                                    key={sidx}
+                                                    style={{
+                                                        background: "white",
+                                                        borderRadius: "8px",
+                                                        padding: "12px 16px",
+                                                        border: "1px solid #e2e8f0"
+                                                    }}
+                                                >
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+                                                        <div style={{ flex: 1 }}>
+                                                            <div style={{ fontWeight: "500", color: "#1e293b", marginBottom: "4px" }}>
+                                                                📚 {sess.session_title}
+                                                            </div>
+                                                            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "0.8rem", color: "#64748b" }}>
+                                                                <span>🕐 {formatDate(sess.purchased_at)}</span>
+                                                                {sess.affiliate_code && (
+                                                                    <span style={{ color: "#f59e0b" }}>
+                                                                        🏷️ {sess.affiliate_code} ({sess.affiliate_name}, {sess.commission_pct}%)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ textAlign: "right" }}>
+                                                            <div style={{ fontWeight: "500" }}>
+                                                                Rp {sess.price_paid?.toLocaleString()}
+                                                            </div>
+                                                            {sess.commission_amount > 0 && (
+                                                                <div style={{ fontSize: "0.75rem", color: "#f59e0b" }}>
+                                                                    Komisi: -Rp {sess.commission_amount?.toLocaleString()}
+                                                                </div>
+                                                            )}
+                                                            <div style={{ fontSize: "0.75rem", color: "#22c55e" }}>
+                                                                Bersih: Rp {sess.net_amount?.toLocaleString()}
+                                                            </div>
+                                                        </div>
+                                                        <span style={{
+                                                            background: sess.payment_status === "PAID" ? "#dcfce7" : "#fef3c7",
+                                                            color: sess.payment_status === "PAID" ? "#16a34a" : "#92400e",
+                                                            padding: "4px 10px",
+                                                            borderRadius: "20px",
+                                                            fontSize: "0.7rem",
+                                                            fontWeight: "600"
+                                                        }}>
+                                                            {sess.payment_status === "PAID" ? "✓ Lunas" : "⏳ Pending"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>

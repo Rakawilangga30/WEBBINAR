@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -140,9 +141,23 @@ func GetAllOrganizationApplications(c *gin.Context) {
 
 	err := config.DB.Select(&applications, `
 		SELECT 
-			oa.*,
-			u.name AS user_name,
-			u.email AS user_email,
+			oa.id, oa.user_id, oa.org_name, 
+			COALESCE(oa.org_description, '') AS org_description, 
+			COALESCE(oa.org_category, '') AS org_category, 
+			COALESCE(oa.org_logo_url, '') AS org_logo_url, 
+			COALESCE(oa.org_email, '') AS org_email, 
+			COALESCE(oa.org_phone, '') AS org_phone, 
+			COALESCE(oa.org_website, '') AS org_website,
+			COALESCE(oa.reason, '') AS reason, 
+			COALESCE(oa.social_media, '') AS social_media, 
+			COALESCE(oa.bank_name, '') AS bank_name, 
+			COALESCE(oa.bank_account, '') AS bank_account, 
+			COALESCE(oa.bank_account_name, '') AS bank_account_name,
+			oa.status, oa.reviewed_by, oa.reviewed_at, 
+			COALESCE(oa.review_note, '') AS review_note, 
+			oa.submitted_at,
+			COALESCE(u.name, '') AS user_name,
+			COALESCE(u.email, '') AS user_email,
 			u.profile_img AS user_profile_img
 		FROM organization_applications oa
 		LEFT JOIN users u ON oa.user_id = u.id
@@ -150,7 +165,8 @@ func GetAllOrganizationApplications(c *gin.Context) {
 	`)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applications"})
+		fmt.Println("Error fetching applications:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applications: " + err.Error()})
 		return
 	}
 

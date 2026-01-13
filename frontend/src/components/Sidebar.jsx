@@ -137,7 +137,7 @@ export default function Sidebar() {
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent"
           }}>
-            Webinar
+            WEBBINAR
           </h2>
         </div>
         <div style={{

@@ -166,50 +166,112 @@ func GetOrganizationReport(c *gin.Context) {
 		return
 	}
 
-	// 2. Total events
-	var total int
-	config.DB.Get(&total, `SELECT COUNT(*) FROM events WHERE organization_id = ?`, orgID)
-
-	// 3. Detail events with buyer counts and revenue
-	type EventStat struct {
+	// 2. Get events (simpler query)
+	type EventBasic struct {
 		ID           int64   `db:"id" json:"id"`
 		Title        string  `db:"title" json:"title"`
 		ThumbnailURL *string `db:"thumbnail_url" json:"thumbnail_url"`
-		Buyers       int     `db:"buyers" json:"buyers"`
-		Revenue      float64 `db:"revenue" json:"revenue"`
 		CreatedAt    string  `db:"created_at" json:"created_at"`
 	}
 
+	var eventsBasic []EventBasic
+	err = config.DB.Select(&eventsBasic, `
+		SELECT id, title, thumbnail_url, created_at
+		FROM events WHERE organization_id = ?
+		ORDER BY created_at DESC
+	`, orgID)
+
+	if err != nil {
+		fmt.Printf("[ORG-REPORT] Error fetching events: %v\n", err)
+	}
+
+	fmt.Printf("[ORG-REPORT] orgID=%d, found %d events\n", orgID, len(eventsBasic))
+
+	// 3. For each event, calculate stats
+	type EventStat struct {
+		ID                  int64   `json:"id"`
+		Title               string  `json:"title"`
+		ThumbnailURL        *string `json:"thumbnail_url"`
+		Buyers              int     `json:"buyers"`
+		GrossRevenue        float64 `json:"gross_revenue"`
+		AffiliateCommission float64 `json:"affiliate_commission"`
+		NetRevenue          float64 `json:"net_revenue"`
+		CreatedAt           string  `json:"created_at"`
+	}
+
 	var events []EventStat
-	query := `
-		SELECT e.id, e.title, e.thumbnail_url, e.created_at,
-			(SELECT COUNT(DISTINCT p.user_id) FROM purchases p JOIN sessions s ON p.session_id = s.id WHERE s.event_id = e.id) AS buyers,
-			(SELECT COALESCE(SUM(p.price_paid), 0) FROM purchases p JOIN sessions s ON p.session_id = s.id WHERE s.event_id = e.id) AS revenue
-		FROM events e
-		WHERE e.organization_id = ?
-		ORDER BY e.created_at DESC
-	`
-	config.DB.Select(&events, query, orgID)
+	var totalBuyers int
+	var totalGrossRevenue, totalAffiliateCommission, totalNetRevenue float64
+
+	for _, eb := range eventsBasic {
+		var buyers int
+		var grossRevenue float64
+		var affiliateCommission float64
+
+		config.DB.Get(&buyers, `
+			SELECT COUNT(DISTINCT p.user_id) 
+			FROM purchases p 
+			JOIN sessions s ON p.session_id = s.id 
+			WHERE s.event_id = ? AND p.status = 'PAID'
+		`, eb.ID)
+
+		config.DB.Get(&grossRevenue, `
+			SELECT COALESCE(SUM(p.price_paid), 0) 
+			FROM purchases p 
+			JOIN sessions s ON p.session_id = s.id 
+			WHERE s.event_id = ? AND p.status = 'PAID'
+		`, eb.ID)
+
+		config.DB.Get(&affiliateCommission, `
+			SELECT COALESCE(SUM(p.price_paid * COALESCE(ap.commission_percentage, 0) / 100), 0)
+			FROM purchases p 
+			JOIN sessions s ON p.session_id = s.id 
+			LEFT JOIN affiliate_partnerships ap ON p.affiliate_code = ap.unique_code AND ap.event_id = s.event_id
+			WHERE s.event_id = ? AND p.status = 'PAID'
+		`, eb.ID)
+
+		netRevenue := grossRevenue - affiliateCommission
+
+		events = append(events, EventStat{
+			ID:                  eb.ID,
+			Title:               eb.Title,
+			ThumbnailURL:        eb.ThumbnailURL,
+			Buyers:              buyers,
+			GrossRevenue:        grossRevenue,
+			AffiliateCommission: affiliateCommission,
+			NetRevenue:          netRevenue,
+			CreatedAt:           eb.CreatedAt,
+		})
+
+		totalBuyers += buyers
+		totalGrossRevenue += grossRevenue
+		totalAffiliateCommission += affiliateCommission
+		totalNetRevenue += netRevenue
+	}
 
 	if events == nil {
 		events = []EventStat{}
 	}
 
-	// 4. Calculate total revenue
-	var totalRevenue float64
-	for _, e := range events {
-		totalRevenue += e.Revenue
+	// 4. Get balance from organization_balances
+	var balance struct {
+		AvailableBalance float64 `db:"balance"`
+		TotalWithdrawn   float64 `db:"total_withdrawn"`
 	}
-
-	// 5. Calculate withdrawable amount (e.g. 90% after platform fee)
-	withdrawable := totalRevenue * 0.90
+	config.DB.Get(&balance, `
+		SELECT COALESCE(balance, 0) as balance, COALESCE(total_withdrawn, 0) as total_withdrawn
+		FROM organization_balances WHERE organization_id = ?
+	`, orgID)
 
 	c.JSON(200, gin.H{
-		"total_events":  total,
-		"events":        events,
-		"total_revenue": totalRevenue,
-		"withdrawable":  withdrawable,
-		"platform_fee":  0.10,
+		"total_events":         len(events),
+		"total_buyers":         totalBuyers,
+		"events":               events,
+		"gross_revenue":        totalGrossRevenue,
+		"affiliate_commission": totalAffiliateCommission,
+		"net_revenue":          totalNetRevenue,
+		"available_balance":    balance.AvailableBalance,
+		"total_withdrawn":      balance.TotalWithdrawn,
 	})
 }
 
@@ -288,52 +350,174 @@ func GetEventBuyers(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	eventID := c.Param("eventID")
 
+	fmt.Printf("[EVENT-BUYERS] Request: userID=%d, eventID=%s\n", userID, eventID)
+
 	// Verify organization owns this event
 	var orgID int64
 	err := config.DB.Get(&orgID, `SELECT id FROM organizations WHERE owner_user_id = ?`, userID)
 	if err != nil {
+		fmt.Printf("[EVENT-BUYERS] Error: Organization not found for user %d: %v\n", userID, err)
 		c.JSON(400, gin.H{"error": "Organization not found"})
 		return
 	}
 
+	fmt.Printf("[EVENT-BUYERS] Found orgID=%d for userID=%d\n", orgID, userID)
+
 	var eventOrgID int64
 	err = config.DB.Get(&eventOrgID, `SELECT organization_id FROM events WHERE id = ?`, eventID)
-	if err != nil || eventOrgID != orgID {
-		c.JSON(403, gin.H{"error": "Event not found or not owned by your organization"})
+	if err != nil {
+		fmt.Printf("[EVENT-BUYERS] Error: Event %s not found: %v\n", eventID, err)
+		c.JSON(403, gin.H{"error": "Event not found"})
 		return
 	}
 
-	// Get buyer details
-	type BuyerInfo struct {
-		UserID        int64   `db:"user_id" json:"user_id"`
-		UserName      string  `db:"user_name" json:"user_name"`
-		UserEmail     string  `db:"user_email" json:"user_email"`
-		SessionsCount int     `db:"sessions_count" json:"sessions_count"`
-		TotalPaid     float64 `db:"total_paid" json:"total_paid"`
+	fmt.Printf("[EVENT-BUYERS] Event %s has organization_id=%d (my org=%d)\n", eventID, eventOrgID, orgID)
+
+	if eventOrgID != orgID {
+		fmt.Printf("[EVENT-BUYERS] Error: Event org mismatch! eventOrgID=%d != orgID=%d\n", eventOrgID, orgID)
+		c.JSON(403, gin.H{"error": "Event not owned by your organization"})
+		return
 	}
 
-	var buyers []BuyerInfo
+	// Get detailed purchase list (individual purchases, not grouped)
+	type PurchaseDetail struct {
+		ID               int64   `db:"id" json:"id"`
+		UserID           int64   `db:"user_id" json:"user_id"`
+		UserName         string  `db:"user_name" json:"user_name"`
+		UserEmail        string  `db:"user_email" json:"user_email"`
+		UserPhone        string  `db:"user_phone" json:"user_phone"`
+		SessionID        int64   `db:"session_id" json:"session_id"`
+		SessionTitle     string  `db:"session_title" json:"session_title"`
+		PricePaid        float64 `db:"price_paid" json:"price_paid"`
+		AffiliateCode    string  `db:"affiliate_code" json:"affiliate_code"`
+		AffiliateName    string  `db:"affiliate_name" json:"affiliate_name"`
+		CommissionPct    float64 `db:"commission_pct" json:"commission_pct"`
+		CommissionAmount float64 `db:"commission_amount" json:"commission_amount"`
+		NetAmount        float64 `db:"net_amount" json:"net_amount"`
+		PurchasedAt      string  `db:"purchased_at" json:"purchased_at"`
+		PaymentStatus    string  `db:"payment_status" json:"payment_status"`
+	}
+
+	var purchases []PurchaseDetail
+
+	// Debug: First check if there are ANY purchases for this event
+	var rawCount int
+	config.DB.Get(&rawCount, `
+		SELECT COUNT(*) FROM purchases p 
+		JOIN sessions s ON p.session_id = s.id 
+		WHERE s.event_id = ?
+	`, eventID)
+	fmt.Printf("[EVENT-BUYERS] Raw purchase count for eventID=%s: %d\n", eventID, rawCount)
+
+	// Also check paid only
+	var debugPaidCount int
+	config.DB.Get(&debugPaidCount, `
+		SELECT COUNT(*) FROM purchases p 
+		JOIN sessions s ON p.session_id = s.id 
+		WHERE s.event_id = ? AND p.status = 'PAID'
+	`, eventID)
+	fmt.Printf("[EVENT-BUYERS] Paid purchase count for eventID=%s: %d\n", eventID, debugPaidCount)
+
+	// Try the full query with affiliate info
 	query := `
 		SELECT 
+			p.id,
 			p.user_id,
 			u.name as user_name,
 			u.email as user_email,
-			COUNT(p.id) as sessions_count,
-			SUM(p.price_paid) as total_paid
+			COALESCE(u.phone, '') as user_phone,
+			p.session_id,
+			s.title as session_title,
+			p.price_paid,
+			COALESCE(p.affiliate_code, '') as affiliate_code,
+			COALESCE(aff_user.name, '') as affiliate_name,
+			COALESCE(ap.commission_percentage, 0) as commission_pct,
+			CASE 
+				WHEN ap.commission_percentage IS NOT NULL 
+				THEN p.price_paid * ap.commission_percentage / 100 
+				ELSE 0 
+			END as commission_amount,
+			CASE 
+				WHEN ap.commission_percentage IS NOT NULL 
+				THEN p.price_paid - (p.price_paid * ap.commission_percentage / 100) 
+				ELSE p.price_paid 
+			END as net_amount,
+			p.purchased_at as purchased_at,
+			COALESCE(p.status, 'PENDING') as payment_status
 		FROM purchases p
 		JOIN users u ON p.user_id = u.id
 		JOIN sessions s ON p.session_id = s.id
+		LEFT JOIN affiliate_partnerships ap ON p.affiliate_code = ap.unique_code AND ap.event_id = s.event_id
+		LEFT JOIN users aff_user ON ap.user_id = aff_user.id
 		WHERE s.event_id = ?
-		GROUP BY p.user_id, u.name, u.email
-		ORDER BY total_paid DESC
+		ORDER BY p.purchased_at DESC
 	`
-	config.DB.Select(&buyers, query, eventID)
+	err = config.DB.Select(&purchases, query, eventID)
 
-	if buyers == nil {
-		buyers = []BuyerInfo{}
+	// Debug logging
+	fmt.Printf("[EVENT-BUYERS] eventID=%s, purchases_count=%d, err=%v\n", eventID, len(purchases), err)
+
+	// If main query failed or returned empty but we know there are purchases, try simpler query
+	if (err != nil || len(purchases) == 0) && rawCount > 0 {
+		fmt.Printf("[EVENT-BUYERS] Trying fallback query...\n")
+
+		// Simpler query without affiliate joins
+		fallbackQuery := `
+			SELECT 
+				p.id,
+				p.user_id,
+				u.name as user_name,
+				u.email as user_email,
+				COALESCE(u.phone, '') as user_phone,
+				p.session_id,
+				s.title as session_title,
+				p.price_paid,
+				COALESCE(p.affiliate_code, '') as affiliate_code,
+				'' as affiliate_name,
+				0 as commission_pct,
+				0 as commission_amount,
+				p.price_paid as net_amount,
+				p.purchased_at as purchased_at,
+				COALESCE(p.status, 'PENDING') as payment_status
+			FROM purchases p
+			JOIN users u ON p.user_id = u.id
+			JOIN sessions s ON p.session_id = s.id
+			WHERE s.event_id = ?
+			ORDER BY p.purchased_at DESC
+		`
+		err = config.DB.Select(&purchases, fallbackQuery, eventID)
+		fmt.Printf("[EVENT-BUYERS] Fallback result: purchases_count=%d, err=%v\n", len(purchases), err)
 	}
 
-	c.JSON(200, gin.H{"buyers": buyers})
+	if purchases == nil {
+		purchases = []PurchaseDetail{}
+	}
+
+	// Calculate summary
+	var totalRevenue, totalCommission, totalNetRevenue float64
+	var paidCount, pendingCount int
+	for _, p := range purchases {
+		if p.PaymentStatus == "PAID" {
+			totalRevenue += p.PricePaid
+			totalCommission += p.CommissionAmount
+			totalNetRevenue += p.NetAmount
+			paidCount++
+		} else {
+			pendingCount++
+		}
+	}
+
+	c.JSON(200, gin.H{
+		"purchases": purchases,
+		"summary": gin.H{
+			"total_purchases":  len(purchases),
+			"paid_count":       paidCount,
+			"pending_count":    pendingCount,
+			"gross_revenue":    totalRevenue,
+			"total_commission": totalCommission,
+			"net_revenue":      totalNetRevenue,
+		},
+	})
 }
 
 // =======================================

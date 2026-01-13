@@ -86,15 +86,15 @@ func CheckoutCart(c *gin.Context) {
 	tx, _ := config.DB.Beginx()
 	defer tx.Rollback()
 
-	// Create purchases for each item
+	// Create purchases for each item with affiliate code
 	for _, item := range items {
 		if item.ItemType == "SESSION" && item.SessionID != nil {
-			// Single session purchase
+			// Single session purchase - include affiliate_code
 			_, err := tx.Exec(`
-				INSERT INTO purchases (user_id, session_id, price_paid, status, order_id)
-				VALUES (?, ?, ?, 'PENDING', ?)
-				ON DUPLICATE KEY UPDATE status = 'PENDING', order_id = ?, price_paid = ?
-			`, userID, *item.SessionID, item.Price, baseOrderID, baseOrderID, item.Price)
+				INSERT INTO purchases (user_id, session_id, price_paid, status, order_id, affiliate_code)
+				VALUES (?, ?, ?, 'PENDING', ?, ?)
+				ON DUPLICATE KEY UPDATE status = 'PENDING', order_id = ?, price_paid = ?, affiliate_code = ?
+			`, userID, *item.SessionID, item.Price, baseOrderID, cart.AffiliateCode, baseOrderID, item.Price, cart.AffiliateCode)
 			if err != nil {
 				fmt.Printf("[CHECKOUT] Error creating purchase: %v\n", err)
 			}
@@ -106,17 +106,16 @@ func CheckoutCart(c *gin.Context) {
 			pricePerSession := item.Price / float64(len(sessionIDs))
 			for _, sessID := range sessionIDs {
 				tx.Exec(`
-					INSERT INTO purchases (user_id, session_id, price_paid, status, order_id)
-					VALUES (?, ?, ?, 'PENDING', ?)
-					ON DUPLICATE KEY UPDATE status = 'PENDING', order_id = ?, price_paid = ?
-				`, userID, sessID, pricePerSession, baseOrderID, baseOrderID, pricePerSession)
+					INSERT INTO purchases (user_id, session_id, price_paid, status, order_id, affiliate_code)
+					VALUES (?, ?, ?, 'PENDING', ?, ?)
+					ON DUPLICATE KEY UPDATE status = 'PENDING', order_id = ?, price_paid = ?, affiliate_code = ?
+				`, userID, sessID, pricePerSession, baseOrderID, cart.AffiliateCode, baseOrderID, pricePerSession, cart.AffiliateCode)
 			}
 		}
 	}
 
-	// Store affiliate code in order for later split payment
+	// Store affiliate code in order for later split payment (keep for backward compat)
 	if cart.AffiliateCode != nil {
-		// We'll parse this from order ID later in processSuccessfulPayment
 		orderID = fmt.Sprintf("%s-AFF-%s", baseOrderID, *cart.AffiliateCode)
 	}
 
@@ -192,13 +191,16 @@ func CheckoutCart(c *gin.Context) {
 // ProcessCartPayment handles successful cart payment with split payments
 // Called from HandleMidtransNotification when order starts with "CART-"
 func ProcessCartPayment(orderID string, grossAmount string) error {
-	// Parse affiliate code from order ID if present
-	var affiliateCode *string
+	fmt.Printf("[CART-PAYMENT] Processing order: %s, amount: %s\n", orderID, grossAmount)
+
+	// Parse affiliate code from order ID if present (backward compat)
+	var affiliateCodeFromURL *string
 	if strings.Contains(orderID, "-AFF-") {
 		parts := strings.Split(orderID, "-AFF-")
 		if len(parts) == 2 {
-			affiliateCode = &parts[1]
+			affiliateCodeFromURL = &parts[1]
 			orderID = parts[0] // Use base order ID for DB queries
+			fmt.Printf("[CART-PAYMENT] Parsed affiliate code from URL: %s\n", *affiliateCodeFromURL)
 		}
 	}
 
@@ -206,29 +208,35 @@ func ProcessCartPayment(orderID string, grossAmount string) error {
 	defer tx.Rollback()
 
 	// Update all purchases to PAID (use exact match since we store baseOrderID)
-	_, err := tx.Exec("UPDATE purchases SET status = 'PAID' WHERE order_id = ?", orderID)
+	result, err := tx.Exec("UPDATE purchases SET status = 'PAID' WHERE order_id = ?", orderID)
 	if err != nil {
 		return fmt.Errorf("failed to update purchases: %v", err)
 	}
+	rowsAffected, _ := result.RowsAffected()
+	fmt.Printf("[CART-PAYMENT] Updated %d purchases to PAID\n", rowsAffected)
 
-	// Get all purchases in this order
+	// Get all purchases in this order - now include affiliate_code from purchases table!
 	var purchases []struct {
-		ID         int64   `db:"id"`
-		SessionID  int64   `db:"session_id"`
-		PricePaid  float64 `db:"price_paid"`
-		EventID    int64   `db:"event_id"`
-		OrgID      int64   `db:"org_id"`
-		IsOfficial bool    `db:"is_official"`
+		ID            int64   `db:"id"`
+		SessionID     int64   `db:"session_id"`
+		PricePaid     float64 `db:"price_paid"`
+		EventID       int64   `db:"event_id"`
+		OrgID         int64   `db:"org_id"`
+		IsOfficial    bool    `db:"is_official"`
+		AffiliateCode *string `db:"affiliate_code"`
 	}
 	tx.Select(&purchases, `
 		SELECT p.id, p.session_id, p.price_paid, e.id as event_id, 
-			o.id as org_id, COALESCE(o.is_official, 0) as is_official
+			o.id as org_id, COALESCE(o.is_official, 0) as is_official,
+			p.affiliate_code
 		FROM purchases p
 		JOIN sessions s ON p.session_id = s.id
 		JOIN events e ON s.event_id = e.id
 		JOIN organizations o ON e.organization_id = o.id
 		WHERE p.order_id = ?
 	`, orderID)
+
+	fmt.Printf("[CART-PAYMENT] Found %d purchases to process\n", len(purchases))
 
 	// Get buyer ID
 	var buyerID int64
@@ -241,6 +249,16 @@ func ProcessCartPayment(orderID string, grossAmount string) error {
 		}
 
 		// Check if affiliate code is valid for this event
+		// Use affiliate_code from purchase table, fallback to URL-parsed code
+		var affiliateCode *string
+		if purchase.AffiliateCode != nil && *purchase.AffiliateCode != "" {
+			affiliateCode = purchase.AffiliateCode
+			fmt.Printf("[CART-PAYMENT] Using affiliate code from purchase: %s for event %d\n", *affiliateCode, purchase.EventID)
+		} else if affiliateCodeFromURL != nil {
+			affiliateCode = affiliateCodeFromURL
+			fmt.Printf("[CART-PAYMENT] Using affiliate code from URL: %s for event %d\n", *affiliateCode, purchase.EventID)
+		}
+
 		var partnership struct {
 			UserID               int64   `db:"user_id"`
 			CommissionPercentage float64 `db:"commission_percentage"`
@@ -255,6 +273,9 @@ func ProcessCartPayment(orderID string, grossAmount string) error {
 			`, *affiliateCode, purchase.EventID)
 			if err == nil {
 				hasAffiliate = true
+				fmt.Printf("[CART-PAYMENT] ✅ Found affiliate partnership: user=%d, commission=%.2f%%\n", partnership.UserID, partnership.CommissionPercentage)
+			} else {
+				fmt.Printf("[CART-PAYMENT] ⚠️ No matching partnership for code=%s, event=%d: %v\n", *affiliateCode, purchase.EventID, err)
 			}
 		}
 
@@ -263,14 +284,23 @@ func ProcessCartPayment(orderID string, grossAmount string) error {
 			commission := purchase.PricePaid * (partnership.CommissionPercentage / 100)
 			orgAmount := purchase.PricePaid - commission
 
+			fmt.Printf("[CART-PAYMENT] 💰 Splitting payment: total=%.0f, commission=%.0f (%.2f%%), org=%.0f\n",
+				purchase.PricePaid, commission, partnership.CommissionPercentage, orgAmount)
+
 			// Credit affiliate balance
-			tx.Exec(`
+			_, affErr := tx.Exec(`
 				INSERT INTO affiliate_balances (user_id, balance, total_earned)
 				VALUES (?, ?, ?)
 				ON DUPLICATE KEY UPDATE 
 					balance = balance + ?,
 					total_earned = total_earned + ?
 			`, partnership.UserID, commission, commission, commission, commission)
+
+			if affErr != nil {
+				fmt.Printf("[CART-PAYMENT] ❌ Error crediting affiliate balance: %v\n", affErr)
+			} else {
+				fmt.Printf("[CART-PAYMENT] ✅ Credited Rp %.0f to affiliate user %d\n", commission, partnership.UserID)
+			}
 
 			// Record affiliate transaction
 			tx.Exec(`

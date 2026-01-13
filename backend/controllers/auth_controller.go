@@ -19,6 +19,17 @@ type RegisterRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Phone    string `json:"phone"`
+
+	// Organization registration fields (optional)
+	RegisterType    string `json:"register_type"` // "user" or "organization"
+	OrgName         string `json:"org_name"`
+	OrgDescription  string `json:"org_description"`
+	OrgCategory     string `json:"org_category"`
+	OrgPhone        string `json:"org_phone"`
+	BankName        string `json:"bank_name"`
+	BankAccount     string `json:"bank_account"`
+	BankAccountName string `json:"bank_account_name"`
 }
 
 func Register(c *gin.Context) {
@@ -40,17 +51,17 @@ func Register(c *gin.Context) {
 	}
 
 	// 2. Hash password
-	hash, err := helpers.HashPassword(req.Password) // Menggunakan helper hash
+	hash, err := helpers.HashPassword(req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
 	}
 
-	// 3. Insert user
+	// 3. Insert user with phone
 	res, err := config.DB.Exec(`
-		INSERT INTO users (name, email, password_hash) 
-		VALUES (?, ?, ?)
-	`, req.Name, req.Email, hash)
+		INSERT INTO users (name, email, password_hash, phone) 
+		VALUES (?, ?, ?, ?)
+	`, req.Name, req.Email, hash, req.Phone)
 
 	if err != nil {
 		log.Println("Insert user error:", err)
@@ -65,6 +76,48 @@ func Register(c *gin.Context) {
 		INSERT INTO user_roles (user_id, role_id) VALUES (?, 1)
 	`, userID); err != nil {
 		log.Println("Assign role error:", err)
+	}
+
+	// 5. If registering as organization, create organization application
+	if req.RegisterType == "organization" && req.OrgName != "" {
+		_, err := config.DB.Exec(`
+			INSERT INTO organization_applications 
+			(user_id, org_name, org_description, org_category, org_phone, 
+			 bank_name, bank_account, bank_account_name, reason, submitted_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Registrasi langsung sebagai organisasi', NOW())
+		`, userID, req.OrgName, req.OrgDescription, req.OrgCategory, req.OrgPhone,
+			req.BankName, req.BankAccount, req.BankAccountName)
+
+		if err != nil {
+			log.Println("Insert org application error:", err)
+			// Don't fail registration, user is still created
+		}
+
+		// Notify admins about new application
+		go func() {
+			var adminIDs []int64
+			config.DB.Select(&adminIDs, `
+				SELECT u.id FROM users u
+				JOIN user_roles ur ON u.id = ur.user_id
+				JOIN roles r ON ur.role_id = r.id
+				WHERE r.name IN ('ADMIN', 'SUPERADMIN')
+			`)
+			for _, adminID := range adminIDs {
+				CreateNotification(
+					adminID,
+					"new_application",
+					"📝 Pengajuan Organisasi Baru!",
+					req.Name+" mendaftar sebagai organisasi \""+req.OrgName+"\"",
+				)
+			}
+		}()
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":     "Register success! Pengajuan organisasi sedang ditinjau.",
+			"user_id":     userID,
+			"org_pending": true,
+		})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import toast from 'react-hot-toast';
 
 function AffiliatePartnerships() {
+    const navigate = useNavigate();
     const [partnerships, setPartnerships] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Check if user has AFFILIATE role
+    useEffect(() => {
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        const roles = user.roles || [];
+        if (!roles.includes("AFFILIATE")) {
+            toast.error("Akses ditolak. Anda bukan affiliate.");
+            navigate("/dashboard");
+        }
+    }, [navigate]);
 
     useEffect(() => {
         fetchPartnerships();

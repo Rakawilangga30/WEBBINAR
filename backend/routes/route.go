@@ -112,11 +112,19 @@ func RegisterRoutes(r *gin.Engine) {
 	// ==========================================
 	// 4. AFFILIATE ROUTES (New Flow: User joins to promote org events)
 	// ==========================================
-	affiliate := api.Group("/affiliate")
-	affiliate.Use(middlewares.AuthRequired())
+
+	// Routes for ANY authenticated user (to join as affiliate)
+	affiliatePublic := api.Group("/affiliate")
+	affiliatePublic.Use(middlewares.AuthRequired())
 	{
-		// NEW: Join as affiliate for an event
-		affiliate.POST("/join/:eventId", controllers.JoinAffiliateEvent)
+		// Join as affiliate for an event - any authenticated user can request
+		affiliatePublic.POST("/join/:eventId", controllers.JoinAffiliateEvent)
+	}
+
+	// Routes that require AFFILIATE role (existing affiliates only)
+	affiliate := api.Group("/affiliate")
+	affiliate.Use(middlewares.AuthRequired(), middlewares.AffiliateOnly())
+	{
 		affiliate.GET("/partnerships", controllers.GetMyPartnerships)
 
 		// LEGACY: Old submit event flow (keeping for backward compat)

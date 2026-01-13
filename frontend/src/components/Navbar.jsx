@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Rocket, ChevronDown, LogOut, LayoutDashboard, User, LogIn, GraduationCap, Building2 } from "lucide-react";
+import { Search, Rocket, ChevronDown, LogOut, LayoutDashboard, User, LogIn, GraduationCap, Building2, ShoppingCart } from "lucide-react";
 import api from "../api";
 import "./Navbar.css"; // Import the new CSS file
 
@@ -98,7 +98,7 @@ export default function Navbar() {
         <div className="logo-icon-bg">
           <Rocket size={22} strokeWidth={2.5} />
         </div>
-        <span>Webinar</span>
+        <span>WEBBINAR</span>
       </Link>
 
       {/* Search Bar */}
@@ -283,6 +283,19 @@ export default function Navbar() {
 
         {user ? (
           <>
+            <Link to="/dashboard/cart" className="btn-cart" title="Keranjang" style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "40px",
+              height: "40px",
+              borderRadius: "10px",
+              background: "rgba(59, 130, 246, 0.1)",
+              color: "#3b82f6",
+              transition: "all 0.2s ease"
+            }}>
+              <ShoppingCart size={20} strokeWidth={2} />
+            </Link>
             <Link to="/dashboard" className="btn-dashboard">
               <LayoutDashboard size={18} strokeWidth={2.5} />
               Dashboard

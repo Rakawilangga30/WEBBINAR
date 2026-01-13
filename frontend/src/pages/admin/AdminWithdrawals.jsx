@@ -171,8 +171,9 @@ function AdminWithdrawals() {
                 .admin-withdrawals h2 { margin-bottom: 24px; }
                 
                 .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; }
-                .filter-bar button { padding: 8px 16px; border: 1px solid var(--border-color, #333); background: transparent; color: var(--text-muted, #888); border-radius: 8px; cursor: pointer; }
-                .filter-bar button.active { background: var(--primary-color, #3b82f6); color: white; border-color: var(--primary-color, #3b82f6); }
+                .filter-bar button { padding: 8px 16px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: var(--text-muted, #888); border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+                .filter-bar button:hover { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
+                .filter-bar button.active { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border-color: transparent; }
                 
                 .empty-state { text-align: center; padding: 60px; background: var(--card-bg, #1a1a2e); border-radius: 12px; color: var(--text-muted, #888); }
                 

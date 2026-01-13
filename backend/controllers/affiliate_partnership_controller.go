@@ -28,6 +28,42 @@ func JoinAffiliateEvent(c *gin.Context) {
 		return
 	}
 
+	// Check profile completeness - user must complete profile first
+	var profile struct {
+		Name      string  `db:"name"`
+		Phone     *string `db:"phone"`
+		Address   *string `db:"address"`
+		Gender    *string `db:"gender"`
+		Birthdate *string `db:"birthdate"`
+	}
+	config.DB.Get(&profile, "SELECT name, phone, address, gender, birthdate FROM users WHERE id = ?", userID)
+
+	var missingFields []string
+	if profile.Name == "" {
+		missingFields = append(missingFields, "nama")
+	}
+	if profile.Phone == nil || *profile.Phone == "" {
+		missingFields = append(missingFields, "nomor telepon")
+	}
+	if profile.Address == nil || *profile.Address == "" {
+		missingFields = append(missingFields, "alamat")
+	}
+	if profile.Gender == nil || *profile.Gender == "" {
+		missingFields = append(missingFields, "jenis kelamin")
+	}
+	if profile.Birthdate == nil || *profile.Birthdate == "" {
+		missingFields = append(missingFields, "tanggal lahir")
+	}
+
+	if len(missingFields) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":              "Lengkapi profil Anda terlebih dahulu sebelum menjadi affiliate",
+			"missing_fields":     missingFields,
+			"profile_incomplete": true,
+		})
+		return
+	}
+
 	// Parse input
 	var input struct {
 		BankName        string `json:"bank_name" binding:"required"`
@@ -411,7 +447,6 @@ func GetOrgAffiliateStats(c *gin.Context) {
 		return
 	}
 
-	// Get all approved affiliates with their stats
 	var stats []struct {
 		ID                   int64   `db:"id" json:"id"`
 		UserID               int64   `db:"user_id" json:"user_id"`
@@ -425,32 +460,45 @@ func GetOrgAffiliateStats(c *gin.Context) {
 		TotalEarnings        float64 `db:"total_earnings" json:"total_earnings"`
 	}
 
+	// Simplified query - get approved affiliates first
 	err = config.DB.Select(&stats, `
 		SELECT 
 			ap.id, ap.user_id, u.name as user_name, u.email as user_email,
 			ap.event_id, e.title as event_title, ap.unique_code, ap.commission_percentage,
-			COALESCE(affiliate_stats.total_buyers, 0) as total_buyers,
-			COALESCE(affiliate_stats.total_earnings, 0) as total_earnings
+			0 as total_buyers, 0 as total_earnings
 		FROM affiliate_partnerships ap
 		JOIN users u ON ap.user_id = u.id
 		JOIN events e ON ap.event_id = e.id
-		LEFT JOIN (
-			SELECT 
-				p.affiliate_code,
-				COUNT(DISTINCT p.user_id) as total_buyers,
-				SUM(CASE WHEN p.payment_status = 'PAID' THEN p.price * ap2.commission_percentage / 100 ELSE 0 END) as total_earnings
-			FROM purchases p
-			JOIN affiliate_partnerships ap2 ON p.affiliate_code = ap2.unique_code
-			WHERE p.payment_status = 'PAID'
-			GROUP BY p.affiliate_code
-		) affiliate_stats ON affiliate_stats.affiliate_code = ap.unique_code
 		WHERE ap.organization_id = ? AND ap.status = 'APPROVED'
-		ORDER BY affiliate_stats.total_earnings DESC, ap.created_at DESC
+		ORDER BY ap.created_at DESC
 	`, orgID)
 
+	fmt.Printf("[ORG-AFFILIATE-STATS] orgID=%d, found %d affiliates, err=%v\n", orgID, len(stats), err)
+
 	if err != nil {
+		fmt.Printf("[ORG-AFFILIATE-STATS] Query error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil statistik: " + err.Error()})
 		return
+	}
+
+	// Calculate stats for each affiliate from purchases
+	for i := range stats {
+		var buyers int
+		var earnings float64
+		config.DB.Get(&buyers, `
+			SELECT COUNT(DISTINCT p.user_id)
+			FROM purchases p
+			WHERE p.affiliate_code = ? AND p.status = 'PAID'
+		`, stats[i].UniqueCode)
+
+		config.DB.Get(&earnings, `
+			SELECT COALESCE(SUM(p.price_paid * ? / 100), 0)
+			FROM purchases p
+			WHERE p.affiliate_code = ? AND p.status = 'PAID'
+		`, stats[i].CommissionPercentage, stats[i].UniqueCode)
+
+		stats[i].TotalBuyers = buyers
+		stats[i].TotalEarnings = earnings
 	}
 
 	if stats == nil {

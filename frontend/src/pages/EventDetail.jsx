@@ -163,14 +163,40 @@ export default function EventDetail() {
         social_media: ''
     });
 
-    const handleOpenAffiliateForm = () => {
+    // Profile warning modal state
+    const [showProfileWarning, setShowProfileWarning] = useState(false);
+    const [missingProfileFields, setMissingProfileFields] = useState([]);
+
+    const handleOpenAffiliateForm = async () => {
         const token = localStorage.getItem("token");
         if (!token) {
             toast.error("Silakan login terlebih dahulu");
             navigate("/login");
             return;
         }
-        setShowAffiliateForm(true);
+
+        // Check profile completeness first
+        try {
+            const res = await api.get('/user/profile');
+            const profile = res.data.user; // API returns {user: ...}
+            const missingFields = [];
+
+            if (!profile.name) missingFields.push("Nama");
+            if (!profile.phone) missingFields.push("Nomor Telepon");
+            if (!profile.address) missingFields.push("Alamat");
+            if (!profile.gender) missingFields.push("Jenis Kelamin");
+            if (!profile.birthdate) missingFields.push("Tanggal Lahir");
+
+            if (missingFields.length > 0) {
+                setMissingProfileFields(missingFields);
+                setShowProfileWarning(true);
+                return;
+            }
+
+            setShowAffiliateForm(true);
+        } catch (error) {
+            toast.error("Gagal memuat profil");
+        }
     };
 
     const handleSubmitAffiliate = async (e) => {
@@ -185,8 +211,16 @@ export default function EventDetail() {
             toast.success("Permintaan affiliate terkirim! Menunggu persetujuan organisasi.");
             setShowAffiliateForm(false);
             setAffiliateForm({ bank_name: '', bank_account: '', bank_account_name: '', social_media: '' });
+            checkAffiliateStatus(); // Refresh status
         } catch (error) {
-            toast.error(error.response?.data?.error || "Gagal join affiliate");
+            const errData = error.response?.data;
+            if (errData?.profile_incomplete) {
+                toast.error("Lengkapi profil Anda terlebih dahulu");
+                setShowAffiliateForm(false);
+                navigate("/dashboard/profile");
+            } else {
+                toast.error(errData?.error || "Gagal join affiliate");
+            }
         } finally {
             setJoiningAffiliate(false);
         }
@@ -337,7 +371,7 @@ export default function EventDetail() {
                         marginBottom: "16px"
                     }}>
                         <span className="badge badge-primary">
-                            {event.category || "Webinar"}
+                            {event.category || "Edukasi"}
                         </span>
                         {event.publish_status === 'SCHEDULED' && (
                             <span className="badge badge-warning">
@@ -1027,6 +1061,72 @@ export default function EventDetail() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Profile Warning Modal */}
+            {showProfileWarning && (
+                <div style={{
+                    position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                    background: "rgba(0,0,0,0.7)", display: "flex",
+                    alignItems: "center", justifyContent: "center", zIndex: 9999
+                }}>
+                    <div style={{
+                        background: "white", borderRadius: "16px", padding: "32px",
+                        width: "100%", maxWidth: "420px", color: "#1e293b", textAlign: "center"
+                    }}>
+                        <div style={{
+                            width: "64px", height: "64px", borderRadius: "50%",
+                            background: "#fef3c7", display: "flex", alignItems: "center",
+                            justifyContent: "center", margin: "0 auto 20px", fontSize: "32px"
+                        }}>
+                            ⚠️
+                        </div>
+                        <h3 style={{ margin: "0 0 12px 0", fontSize: "1.3rem" }}>
+                            Profil Belum Lengkap
+                        </h3>
+                        <p style={{ color: "#64748b", marginBottom: "16px", lineHeight: "1.6" }}>
+                            Untuk menjadi affiliate, Anda harus melengkapi data profil berikut:
+                        </p>
+                        <div style={{
+                            background: "#fef2f2", border: "1px solid #fecaca",
+                            borderRadius: "8px", padding: "12px", marginBottom: "24px"
+                        }}>
+                            <ul style={{
+                                margin: 0, padding: "0 0 0 20px", textAlign: "left",
+                                color: "#991b1b", fontSize: "0.95rem"
+                            }}>
+                                {missingProfileFields.map((field, idx) => (
+                                    <li key={idx}>{field}</li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                            <button
+                                onClick={() => setShowProfileWarning(false)}
+                                style={{
+                                    padding: "12px 24px", borderRadius: "8px",
+                                    border: "1px solid #e2e8f0", background: "white",
+                                    cursor: "pointer", fontWeight: "500"
+                                }}
+                            >
+                                Batalkan
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowProfileWarning(false);
+                                    navigate("/dashboard/profile");
+                                }}
+                                style={{
+                                    padding: "12px 24px", borderRadius: "8px", border: "none",
+                                    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                                    color: "white", fontWeight: "600", cursor: "pointer"
+                                }}
+                            >
+                                Lengkapi Profil
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

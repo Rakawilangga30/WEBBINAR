@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../api';
+import toast from 'react-hot-toast';
 
 export default function AffiliateSubmitEvent() {
     const navigate = useNavigate();
@@ -23,6 +24,16 @@ export default function AffiliateSubmitEvent() {
 
     const MAX_VIDEOS = 3;
     const MAX_FILES = 3;
+
+    // Check if user has AFFILIATE role
+    useEffect(() => {
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        const roles = user.roles || [];
+        if (!roles.includes("AFFILIATE")) {
+            toast.error("Akses ditolak. Anda bukan affiliate.");
+            navigate("/dashboard");
+        }
+    }, [navigate]);
 
     // Check profile completeness on load
     useEffect(() => {

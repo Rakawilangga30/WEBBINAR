@@ -587,7 +587,7 @@ export default function MyOrganization() {
                                 <label style={labelStyle}>Judul Event</label>
                                 <input
                                     type="text"
-                                    placeholder="Contoh: Webinar Belajar Coding"
+                                    placeholder="Contoh: Kursus Belajar Coding"
                                     required
                                     value={newEvent.title}
                                     onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}

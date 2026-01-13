@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 
 // COMPONENTS
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import DashboardLayout from "./components/DashboardLayout";
 
 // PUBLIC PAGES
@@ -65,11 +66,11 @@ function App() {
       <Toaster position="top-center" reverseOrder={false} />
       <Routes>
         {/* === PUBLIC ROUTES === */}
-        <Route path="/" element={<><Navbar /><LandingPage /></>} />
-        <Route path="/event/:id" element={<><Navbar /><EventDetail /></>} />
-        <Route path="/about" element={<><Navbar /><AboutUs /></>} />
-        <Route path="/report" element={<><Navbar /><Report /></>} />
-        <Route path="/organization/:id" element={<><Navbar /><OrganizationPublic /></>} />
+        <Route path="/" element={<><Navbar /><LandingPage /><Footer /></>} />
+        <Route path="/event/:id" element={<><Navbar /><EventDetail /><Footer /></>} />
+        <Route path="/about" element={<><Navbar /><AboutUs /><Footer /></>} />
+        <Route path="/report" element={<><Navbar /><Report /><Footer /></>} />
+        <Route path="/organization/:id" element={<><Navbar /><OrganizationPublic /><Footer /></>} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
