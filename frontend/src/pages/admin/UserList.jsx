@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../../api";
 import Modal from "../../components/Modal";
 
@@ -50,12 +51,12 @@ export default function UserList() {
         e.preventDefault();
         try {
             await api.post("/admin/users", newUser);
-            alert("✅ User berhasil dibuat!");
+            toast.success("User berhasil dibuat!");
             setShowCreate(false);
             setNewUser({ name: "", email: "", password: "", role: "USER", admin_level: 2, org_name: "" });
             fetchUsers();
         } catch (err) {
-            alert("❌ Gagal membuat user: " + (err.response?.data?.error || err.message));
+            toast.error("Gagal membuat user: " + (err.response?.data?.error || err.message));
         }
     };
 

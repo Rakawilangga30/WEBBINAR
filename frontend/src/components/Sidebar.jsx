@@ -4,7 +4,7 @@ import {
   Rocket, BarChart2, PlusCircle, Package, DollarSign,
   LayoutDashboard, Building, FileText, CheckSquare,
   Users, Star, Megaphone, LogOut, Handshake, Wallet,
-  UserCheck
+  UserCheck, Image
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -210,6 +210,7 @@ export default function Sidebar() {
             <MenuItem to="/dashboard/admin/withdrawals" label="Kelola Penarikan" icon={Wallet} />
             <MenuItem to="/dashboard/admin/users" label="Kelola User" icon={Users} />
             <MenuItem to="/dashboard/admin/featured" label="Featured Banner" icon={Star} />
+            <MenuItem to="/dashboard/admin/ads" label="Kelola Iklan" icon={Image} />
             <MenuItem to="/dashboard/admin/reports" label="Kelola Laporan" icon={Megaphone} />
           </>
         )}

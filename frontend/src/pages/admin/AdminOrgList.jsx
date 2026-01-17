@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../../api";
 
 export default function AdminOrgList() {
     const [organizations, setOrganizations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
+
+    // Delete modal states
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleteReason, setDeleteReason] = useState("");
 
     useEffect(() => {
         fetchOrganizations();
@@ -28,17 +34,27 @@ export default function AdminOrgList() {
         return `http://localhost:8080/${path}`;
     };
 
-    const handleDelete = async (org) => {
-        const reason = prompt(`⚠️ Yakin ingin menghapus organisasi "${org.name}"?\n\nSemua event dan sesi akan dihapus!\n\nMasukkan alasan penghapusan:`);
-        if (reason === null) return; // User cancelled
-        if (!reason.trim()) return alert("Alasan penghapusan wajib diisi!");
+    const handleDelete = (org) => {
+        setDeleteTarget(org);
+        setDeleteReason("");
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteReason.trim()) {
+            toast.error("Alasan penghapusan wajib diisi!");
+            return;
+        }
 
         try {
-            await api.delete(`/admin/organizations/${org.id}`, { data: { reason: reason } });
-            alert("✅ Organisasi berhasil dihapus!");
+            await api.delete(`/admin/organizations/${deleteTarget.id}`, { data: { reason: deleteReason } });
+            toast.success("Organisasi berhasil dihapus!");
+            setShowDeleteModal(false);
+            setDeleteTarget(null);
+            setDeleteReason("");
             fetchOrganizations();
         } catch (error) {
-            alert("❌ Gagal menghapus: " + (error.response?.data?.error || error.message));
+            toast.error("Gagal menghapus: " + (error.response?.data?.error || error.message));
         }
     };
 
@@ -229,6 +245,34 @@ export default function AdminOrgList() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && deleteTarget && (
+                <div style={modalOverlay}>
+                    <div style={modalContent}>
+                        <h3 style={{ margin: "0 0 16px 0", color: "#dc2626" }}>⚠️ Hapus Organisasi</h3>
+                        <p style={{ color: "#64748b", marginBottom: "12px" }}>
+                            Yakin ingin menghapus organisasi <strong>"{deleteTarget.name}"</strong>?
+                        </p>
+                        <p style={{ color: "#ef4444", fontSize: "0.9rem", background: "#fef2f2", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
+                            ⚠️ Semua event dan sesi akan ikut dihapus!
+                        </p>
+                        <div style={{ marginBottom: "16px" }}>
+                            <label style={{ display: "block", fontWeight: "600", color: "#374151", marginBottom: "6px" }}>Alasan Penghapusan *</label>
+                            <textarea
+                                value={deleteReason}
+                                onChange={(e) => setDeleteReason(e.target.value)}
+                                placeholder="Masukkan alasan penghapusan..."
+                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", minHeight: "80px", boxSizing: "border-box" }}
+                            />
+                        </div>
+                        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                            <button onClick={() => setShowDeleteModal(false)} style={{ padding: "10px 18px", background: "white", color: "#374151", border: "1px solid #e2e8f0", borderRadius: "6px", cursor: "pointer", fontWeight: "500" }}>Batal</button>
+                            <button onClick={confirmDelete} style={{ padding: "10px 18px", background: "linear-gradient(135deg, #ef4444, #dc2626)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600" }}>🗑️ Hapus Permanen</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -243,4 +287,26 @@ const thStyle = {
 
 const tdStyle = {
     padding: "14px 16px"
+};
+
+const modalOverlay = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0, 0, 0, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+};
+
+const modalContent = {
+    background: "white",
+    padding: "24px",
+    borderRadius: "16px",
+    width: "100%",
+    maxWidth: "500px",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
 };

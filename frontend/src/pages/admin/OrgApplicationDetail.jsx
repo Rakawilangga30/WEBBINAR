@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../../api";
 
 export default function OrgApplicationDetail() {
@@ -7,6 +8,10 @@ export default function OrgApplicationDetail() {
     const navigate = useNavigate();
     const [app, setApp] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Review modal states
+    const [showReviewModal, setShowReviewModal] = useState(null); // 'APPROVED' or 'REJECTED'
+    const [reviewNote, setReviewNote] = useState("");
 
     useEffect(() => {
         fetchDetail();
@@ -29,19 +34,28 @@ export default function OrgApplicationDetail() {
         }
     };
 
-    const handleReview = async (status) => {
-        const reason = prompt(status === 'APPROVED' ? "Catatan Persetujuan (Opsional):" : "Alasan Penolakan:");
-        if (status === 'REJECTED' && !reason) return alert("Alasan penolakan wajib diisi!");
+    const handleReview = (status) => {
+        setReviewNote("");
+        setShowReviewModal(status);
+    };
+
+    const confirmReview = async () => {
+        if (showReviewModal === 'REJECTED' && !reviewNote.trim()) {
+            toast.error("Alasan penolakan wajib diisi!");
+            return;
+        }
 
         try {
             await api.post(`/admin/organization/applications/${appId}/review`, {
-                status: status,
-                rejection_reason: reason || ""
+                status: showReviewModal,
+                note: reviewNote || ""
             });
-            alert(`Aplikasi berhasil ${status === 'APPROVED' ? 'Disetujui' : 'Ditolak'}`);
+            toast.success(`Aplikasi berhasil ${showReviewModal === 'APPROVED' ? 'Disetujui' : 'Ditolak'}`);
+            setShowReviewModal(null);
+            setReviewNote("");
             fetchDetail();
         } catch (error) {
-            alert("Gagal memproses: " + (error.response?.data?.error || "Error"));
+            toast.error("Gagal memproses: " + (error.response?.data?.error || "Error"));
         }
     };
 
@@ -378,6 +392,34 @@ export default function OrgApplicationDetail() {
                     </button>
                 </div>
             )}
+
+            {/* Review Modal */}
+            {showReviewModal && (
+                <div style={modalOverlay}>
+                    <div style={modalContent}>
+                        <h3 style={{ margin: "0 0 16px 0", color: showReviewModal === 'APPROVED' ? "#16a34a" : "#dc2626" }}>
+                            {showReviewModal === 'APPROVED' ? '✅ Setujui Pengajuan' : '❌ Tolak Pengajuan'}
+                        </h3>
+                        <div style={{ marginBottom: "16px" }}>
+                            <label style={{ display: "block", fontWeight: "600", color: "#374151", marginBottom: "6px" }}>
+                                {showReviewModal === 'APPROVED' ? 'Catatan Persetujuan (Opsional)' : 'Alasan Penolakan *'}
+                            </label>
+                            <textarea
+                                value={reviewNote}
+                                onChange={(e) => setReviewNote(e.target.value)}
+                                placeholder={showReviewModal === 'APPROVED' ? "Tambahkan catatan jika diperlukan..." : "Jelaskan alasan penolakan..."}
+                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", minHeight: "100px", boxSizing: "border-box" }}
+                            />
+                        </div>
+                        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                            <button onClick={() => setShowReviewModal(null)} style={{ padding: "10px 18px", background: "white", color: "#374151", border: "1px solid #e2e8f0", borderRadius: "6px", cursor: "pointer", fontWeight: "500" }}>Batal</button>
+                            <button onClick={confirmReview} style={{ padding: "10px 18px", background: showReviewModal === 'APPROVED' ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #ef4444, #dc2626)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600" }}>
+                                {showReviewModal === 'APPROVED' ? '✅ Setujui' : '❌ Tolak'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -395,4 +437,26 @@ const valueStyle = {
     margin: 0,
     color: "#1e293b",
     fontSize: "0.95rem"
+};
+
+const modalOverlay = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0, 0, 0, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+};
+
+const modalContent = {
+    background: "white",
+    padding: "24px",
+    borderRadius: "16px",
+    width: "100%",
+    maxWidth: "500px",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
 };

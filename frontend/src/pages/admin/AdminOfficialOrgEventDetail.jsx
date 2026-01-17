@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../api';
 import QuizBuilder from '../../components/QuizBuilder';
 
@@ -79,9 +80,9 @@ export default function AdminOfficialOrgEventDetail() {
             await api.put(`/admin/official-org/events/${eventId}`, editForm);
             setEditMode(false);
             fetchData();
-            alert('✅ Event berhasil diupdate');
+            toast.success('Event berhasil diupdate');
         } catch (err) {
-            alert('❌ Gagal update event');
+            toast.error('Gagal update event');
         }
     };
 
@@ -93,9 +94,9 @@ export default function AdminOfficialOrgEventDetail() {
         try {
             await api.post(`/admin/official-org/events/${eventId}/thumbnail`, formData);
             fetchData();
-            alert('✅ Thumbnail berhasil diupdate');
+            toast.success('Thumbnail berhasil diupdate');
         } catch (err) {
-            alert('❌ Gagal upload thumbnail');
+            toast.error('Gagal upload thumbnail');
         }
     };
 
@@ -103,25 +104,25 @@ export default function AdminOfficialOrgEventDetail() {
         try {
             await api.put(`/admin/official-org/events/${eventId}/publish`);
             fetchData();
-        } catch (err) { alert('❌ Gagal publish'); }
+        } catch (err) { toast.error('Gagal publish'); }
     };
 
     const handleUnpublishEvent = async () => {
         try {
             await api.put(`/admin/official-org/events/${eventId}/unpublish`);
             fetchData();
-        } catch (err) { alert('❌ Gagal unpublish'); }
+        } catch (err) { toast.error('Gagal unpublish'); }
     };
 
     const handleScheduleEvent = async () => {
-        if (!scheduleDate) { alert('Pilih tanggal'); return; }
+        if (!scheduleDate) { toast.error('Pilih tanggal'); return; }
         try {
             await api.put(`/admin/official-org/events/${eventId}/schedule`, { publish_at: scheduleDate });
             setShowScheduleModal(null);
             setScheduleDate('');
             fetchData();
-            alert('✅ Event dijadwalkan');
-        } catch (err) { alert('❌ Gagal schedule'); }
+            toast.success('Event dijadwalkan');
+        } catch (err) { toast.error('Gagal schedule'); }
     };
 
     const handleDeleteEvent = async () => {
@@ -129,21 +130,21 @@ export default function AdminOfficialOrgEventDetail() {
         try {
             await api.delete(`/admin/official-org/events/${eventId}`);
             navigate('/dashboard/admin/official-org');
-        } catch (err) { alert('❌ Gagal hapus'); }
+        } catch (err) { toast.error('Gagal hapus'); }
     };
 
     // Session Handlers
     const handleCreateSession = async (e) => {
         e.preventDefault();
-        if (!sessionForm.title.trim()) { alert('Judul wajib diisi'); return; }
+        if (!sessionForm.title.trim()) { toast.error('Judul wajib diisi'); return; }
         setCreating(true);
         try {
             await api.post(`/admin/official-org/events/${eventId}/sessions`, sessionForm);
             setShowCreateSession(false);
             setSessionForm({ title: '', description: '', price: 0 });
             fetchData();
-            alert('✅ Session berhasil dibuat');
-        } catch (err) { alert('❌ Gagal buat session'); }
+            toast.success('Session berhasil dibuat');
+        } catch (err) { toast.error('Gagal buat session'); }
         finally { setCreating(false); }
     };
 
@@ -152,7 +153,7 @@ export default function AdminOfficialOrgEventDetail() {
             await api.put(`/admin/official-org/sessions/${sessionId}`, data);
             setEditingSession(null);
             fetchData();
-        } catch (err) { alert('❌ Gagal update session'); }
+        } catch (err) { toast.error('Gagal update session'); }
     };
 
     const handleDeleteSession = async (sessionId) => {
@@ -160,31 +161,31 @@ export default function AdminOfficialOrgEventDetail() {
         try {
             await api.delete(`/admin/official-org/sessions/${sessionId}`);
             fetchData();
-        } catch (err) { alert('❌ Gagal hapus session'); }
+        } catch (err) { toast.error('Gagal hapus session'); }
     };
 
     const handlePublishSession = async (sessionId) => {
         try {
             await api.put(`/admin/official-org/sessions/${sessionId}/publish`);
             fetchData();
-        } catch (err) { alert('❌ Gagal'); }
+        } catch (err) { toast.error('Gagal'); }
     };
 
     const handleUnpublishSession = async (sessionId) => {
         try {
             await api.put(`/admin/official-org/sessions/${sessionId}/unpublish`);
             fetchData();
-        } catch (err) { alert('❌ Gagal'); }
+        } catch (err) { toast.error('Gagal'); }
     };
 
     const handleScheduleSession = async (sessionId) => {
-        if (!scheduleDate) { alert('Pilih tanggal'); return; }
+        if (!scheduleDate) { toast.error('Pilih tanggal'); return; }
         try {
             await api.put(`/admin/official-org/sessions/${sessionId}/schedule`, { publish_at: scheduleDate });
             setShowScheduleModal(null);
             setScheduleDate('');
             fetchData();
-        } catch (err) { alert('❌ Gagal schedule'); }
+        } catch (err) { toast.error('Gagal schedule'); }
     };
 
     // Upload Handlers
@@ -198,8 +199,8 @@ export default function AdminOfficialOrgEventDetail() {
             await api.post(`/admin/official-org/sessions/${sessionId}/videos`, formData);
             fetchSessionMedia(sessionId);
             fetchData();
-            alert('✅ Video berhasil diupload');
-        } catch (err) { alert('❌ Gagal upload video'); }
+            toast.success('Video berhasil diupload');
+        } catch (err) { toast.error('Gagal upload video'); }
     };
 
     const handleUploadFile = async (sessionId, e) => {
@@ -212,8 +213,8 @@ export default function AdminOfficialOrgEventDetail() {
             await api.post(`/admin/official-org/sessions/${sessionId}/files`, formData);
             fetchSessionMedia(sessionId);
             fetchData();
-            alert('✅ File berhasil diupload');
-        } catch (err) { alert('❌ Gagal upload file'); }
+            toast.success('File berhasil diupload');
+        } catch (err) { toast.error('Gagal upload file'); }
     };
 
     const handleUpdateVideo = async (videoId, data) => {
@@ -221,7 +222,7 @@ export default function AdminOfficialOrgEventDetail() {
             await api.put(`/admin/official-org/videos/${videoId}`, data);
             setEditingVideo(null);
             fetchSessionMedia(expandedSession);
-        } catch (err) { alert('❌ Gagal update'); }
+        } catch (err) { toast.error('Gagal update'); }
     };
 
     const handleDeleteVideo = async (videoId) => {
@@ -230,7 +231,7 @@ export default function AdminOfficialOrgEventDetail() {
             await api.delete(`/admin/official-org/videos/${videoId}`);
             fetchSessionMedia(expandedSession);
             fetchData();
-        } catch (err) { alert('❌ Gagal hapus'); }
+        } catch (err) { toast.error('Gagal hapus'); }
     };
 
     const handleUpdateFile = async (fileId, data) => {
@@ -238,7 +239,7 @@ export default function AdminOfficialOrgEventDetail() {
             await api.put(`/admin/official-org/files/${fileId}`, data);
             setEditingFile(null);
             fetchSessionMedia(expandedSession);
-        } catch (err) { alert('❌ Gagal update'); }
+        } catch (err) { toast.error('Gagal update'); }
     };
 
     const handleDeleteFile = async (fileId) => {
@@ -247,7 +248,7 @@ export default function AdminOfficialOrgEventDetail() {
             await api.delete(`/admin/official-org/files/${fileId}`);
             fetchSessionMedia(expandedSession);
             fetchData();
-        } catch (err) { alert('❌ Gagal hapus'); }
+        } catch (err) { toast.error('Gagal hapus'); }
     };
 
     const formatPrice = (amount) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount || 0);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../../api";
 
 export default function AdminOrgDetail() {
@@ -64,18 +65,18 @@ export default function AdminOrgDetail() {
     const handleSaveEdit = async () => {
         // Validate reason is required
         if (!editForm.reason || !editForm.reason.trim()) {
-            alert("⚠️ Alasan perubahan wajib diisi!");
+            toast.error("Alasan perubahan wajib diisi!");
             return;
         }
 
         try {
             await api.put(`/admin/organizations/${orgId}`, editForm);
-            alert("✅ Organisasi berhasil diperbarui!");
+            toast.success("Organisasi berhasil diperbarui!");
             setIsEditing(false);
             setEditForm({ ...editForm, reason: "" }); // Clear reason after save
             fetchOrgDetail();
         } catch (error) {
-            alert("❌ Gagal: " + (error.response?.data?.error || error.message));
+            toast.error("Gagal: " + (error.response?.data?.error || error.message));
         }
     };
 

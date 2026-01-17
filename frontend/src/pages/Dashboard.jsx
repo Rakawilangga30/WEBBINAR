@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Crown, Radio, Calendar, Inbox, Image as ImageIcon, Clock, ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
 import api from "../api";
+import axios from "axios";
 import "./Dashboard.css"; // Import the CSS file
 
 export default function Dashboard() {
@@ -11,22 +12,47 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [currentSlide, setCurrentSlide] = useState(0);
 
+    // Ads state
+    const [sidebarLeftAds, setSidebarLeftAds] = useState([]);
+    const [sidebarRightAds, setSidebarRightAds] = useState([]);
+
     useEffect(() => {
-        const fetchEvents = async () => {
+        const fetchData = async () => {
             try {
-                // Fetch regular events and featured events separately
-                const [eventsRes, featuredRes] = await Promise.all([
+                // Fetch events, featured events, and ads in parallel
+                const [eventsRes, featuredRes, leftRes, rightRes, bannerRes] = await Promise.all([
                     api.get("/events"),
-                    api.get("/featured-events").catch(() => ({ data: { featured: [] } }))
+                    api.get("/featured-events").catch(() => ({ data: { featured: [] } })),
+                    axios.get("http://localhost:8080/api/ads?placement=SIDEBAR_LEFT").catch(() => ({ data: [] })),
+                    axios.get("http://localhost:8080/api/ads?placement=SIDEBAR_RIGHT").catch(() => ({ data: [] })),
+                    axios.get("http://localhost:8080/api/ads?placement=BANNER_SLIDER").catch(() => ({ data: [] }))
                 ]);
 
                 setEvents(eventsRes.data.events || []);
                 setUpcoming(eventsRes.data.upcoming || []);
 
+                // Set ads
+                setSidebarLeftAds(leftRes.data || []);
+                setSidebarRightAds(rightRes.data || []);
+
+                // Banner slider ads - displayed in the main slider
+                const bannerAds = bannerRes.data || [];
+
                 // Use featured from admin selection, fallback to first 5 events
                 const featured = featuredRes.data.featured || [];
+
+                // Create slider items: banner ads first, then featured events
+                const bannerSlides = bannerAds.map(ad => ({
+                    id: `ad-${ad.id}`,
+                    title: ad.title,
+                    description: '',
+                    category: 'Iklan',
+                    thumbnail_url: ad.image_url,
+                    target_url: ad.target_url,
+                    isAd: true
+                }));
+
                 if (featured.length > 0) {
-                    // Map featured events to match expected format
                     const mappedFeatured = featured.map(f => ({
                         id: f.event_id,
                         title: f.title,
@@ -34,12 +60,15 @@ export default function Dashboard() {
                         category: f.category,
                         thumbnail_url: f.thumbnail_url,
                         organization_id: f.organization_id,
-                        org_name: f.org_name
+                        org_name: f.org_name,
+                        isAd: false
                     }));
-                    setFeaturedEvents(mappedFeatured);
+                    // Banner ads at the beginning, then featured events
+                    setFeaturedEvents([...bannerSlides, ...mappedFeatured]);
                 } else {
-                    // Fallback to first 5 regular events
-                    setFeaturedEvents((eventsRes.data.events || []).slice(0, 5));
+                    // Fallback to first 5 regular events + banner ads
+                    const regularEvents = (eventsRes.data.events || []).slice(0, 5).map(e => ({ ...e, isAd: false }));
+                    setFeaturedEvents([...bannerSlides, ...regularEvents]);
                 }
             } catch (error) {
                 console.error("Gagal load events:", error);
@@ -47,7 +76,7 @@ export default function Dashboard() {
                 setLoading(false);
             }
         };
-        fetchEvents();
+        fetchData();
     }, []);
 
     // Auto-slide for banner
@@ -67,6 +96,13 @@ export default function Dashboard() {
         let cleanUrl = url.replace(/^\/+/, '').replace(/\\/g, '/');
         // Ensure there's a slash between base and path
         return `http://localhost:8080/${cleanUrl}`;
+    };
+
+    // Helper to get ad image URL
+    const getAdImageUrl = (url) => {
+        if (!url) return null;
+        if (url.startsWith("http")) return url;
+        return `http://localhost:8080/${url.replace(/^\/+/, '').replace(/\\/g, '/')}`;
     };
 
     const formatDate = (dateString) => {
@@ -98,203 +134,278 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="dashboard-container">
-
-            {/* FEATURED BANNER SLIDER */}
-            {featuredEvents.length > 0 && (
-                <div style={{ marginBottom: "48px" }}>
-                    <div className="section-title">
-                        <Radio size={28} color="#eb0707ff" fill="#f7f2f2ff" />
-                        <h2>Featured Events</h2>
-                    </div>
-
-                    <div style={{
-                        position: "relative",
-                        borderRadius: "16px",
-                        overflow: "hidden",
-                        boxShadow: "0 10px 25px rgba(0,0,0,0.1)"
-                    }}>
-                        {/* Slides */}
-                        <div style={{
-                            display: "flex",
-                            transition: "transform 0.5s ease",
-                            transform: `translateX(-${currentSlide * 100}%)`
-                        }}>
-                            {featuredEvents.map((evt, idx) => (
-                                <Link
-                                    key={evt.id}
-                                    to={`/event/${evt.id}`}
-                                    style={{
-                                        minWidth: "100%",
-                                        height: "280px",
-                                        background: evt.thumbnail_url
-                                            ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url(${getThumbnailUrl(evt.thumbnail_url)})`
-                                            : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                                        backgroundSize: "cover",
-                                        backgroundPosition: "center",
-                                        display: "flex",
-                                        alignItems: "flex-end",
-                                        padding: "32px",
-                                        textDecoration: "none",
-                                        color: "white"
-                                    }}
-                                >
-                                    <div>
-                                        {evt.category && (
-                                            <span style={{
-                                                background: "rgba(255,255,255,0.2)",
-                                                padding: "6px 14px",
-                                                borderRadius: "20px",
-                                                fontSize: "0.8rem",
-                                                marginBottom: "12px",
-                                                display: "inline-block"
-                                            }}>
-                                                {evt.category}
-                                            </span>
-                                        )}
-                                        <h3 style={{ margin: "0 0 8px 0", fontSize: "1.75rem", fontWeight: "700" }}>
-                                            {evt.title}
-                                        </h3>
-                                        <p style={{ margin: 0, opacity: 0.9, maxWidth: "500px" }}>
-                                            {(evt.description || "").substring(0, 120)}...
-                                        </p>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-
-                        {/* Dots */}
-                        <div style={{
-                            position: "absolute",
-                            bottom: "16px",
-                            right: "32px",
-                            display: "flex",
-                            gap: "8px"
-                        }}>
-                            {featuredEvents.map((_, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => setCurrentSlide(idx)}
-                                    style={{
-                                        width: currentSlide === idx ? "24px" : "8px",
-                                        height: "8px",
-                                        borderRadius: "4px",
-                                        background: currentSlide === idx ? "white" : "rgba(255,255,255,0.5)",
-                                        border: "none",
-                                        cursor: "pointer",
-                                        transition: "all 0.3s ease"
-                                    }}
-                                />
-                            ))}
-                        </div>
-
-                        {/* Nav Arrows */}
-                        {featuredEvents.length > 1 && (
-                            <>
-                                <button
-                                    onClick={() => setCurrentSlide((prev) => (prev - 1 + featuredEvents.length) % featuredEvents.length)}
-                                    style={{
-                                        position: "absolute",
-                                        left: "16px",
-                                        top: "50%",
-                                        transform: "translateY(-50%)",
-                                        width: "40px",
-                                        height: "40px",
-                                        borderRadius: "50%",
-                                        background: "rgba(255,255,255,0.9)",
-                                        border: "none",
-                                        cursor: "pointer",
-                                        fontSize: "1.2rem",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center"
-                                    }}
-                                ><ChevronLeft size={24} color="#1e293b" /></button>
-                                <button
-                                    onClick={() => setCurrentSlide((prev) => (prev + 1) % featuredEvents.length)}
-                                    style={{
-                                        position: "absolute",
-                                        right: "16px",
-                                        top: "50%",
-                                        transform: "translateY(-50%)",
-                                        width: "40px",
-                                        height: "40px",
-                                        borderRadius: "50%",
-                                        background: "rgba(255,255,255,0.9)",
-                                        border: "none",
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center"
-                                    }}
-                                ><ChevronRight size={24} color="#1e293b" /></button>
-                            </>
-                        )}
-                    </div>
+        <div className="dashboard-wrapper">
+            {/* LEFT SIDEBAR ADS */}
+            {sidebarLeftAds.length > 0 && (
+                <div className="sidebar-ad sidebar-ad-left">
+                    {sidebarLeftAds.map(ad => (
+                        <a
+                            key={ad.id}
+                            href={ad.target_url || "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="sidebar-ad-item"
+                        >
+                            <img src={getAdImageUrl(ad.image_url)} alt={ad.title} />
+                            <div className="sidebar-ad-info">
+                                <div className="sidebar-ad-title">{ad.title}</div>
+                                <div className="sidebar-ad-label">Iklan</div>
+                            </div>
+                        </a>
+                    ))}
                 </div>
             )}
 
-            {/* SEKSI 1: UPCOMING EVENTS */}
-            {upcoming.length > 0 && (
-                <div style={{ marginBottom: "48px" }}>
+            <div className="dashboard-container">
+
+                {/* FEATURED BANNER SLIDER */}
+                {featuredEvents.length > 0 && (
+                    <div style={{ marginBottom: "32px" }}>
+                        <div className="section-title">
+                            <Radio size={28} color="#eb0707ff" fill="#f7f2f2ff" />
+                            <h2>Featured Events</h2>
+                        </div>
+
+                        <div style={{
+                            position: "relative",
+                            borderRadius: "16px",
+                            overflow: "hidden",
+                            boxShadow: "0 10px 25px rgba(0,0,0,0.1)"
+                        }}>
+                            {/* Slides */}
+                            <div style={{
+                                display: "flex",
+                                transition: "transform 0.5s ease",
+                                transform: `translateX(-${currentSlide * 100}%)`
+                            }}>
+                                {featuredEvents.map((evt, idx) => {
+                                    const slideContent = (
+                                        <div
+                                            key={evt.id}
+                                            style={{
+                                                minWidth: "100%",
+                                                height: "280px",
+                                                background: evt.thumbnail_url
+                                                    ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url(${getThumbnailUrl(evt.thumbnail_url)})`
+                                                    : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                                                backgroundSize: "cover",
+                                                backgroundPosition: "center",
+                                                display: "flex",
+                                                alignItems: "flex-end",
+                                                padding: "32px",
+                                                textDecoration: "none",
+                                                color: "white",
+                                                cursor: "pointer"
+                                            }}
+                                        >
+                                            <div>
+                                                {evt.category && (
+                                                    <span style={{
+                                                        background: evt.isAd ? "rgba(255,193,7,0.9)" : "rgba(255,255,255,0.2)",
+                                                        padding: "6px 14px",
+                                                        borderRadius: "20px",
+                                                        fontSize: "0.8rem",
+                                                        marginBottom: "12px",
+                                                        display: "inline-block",
+                                                        color: evt.isAd ? "#000" : "#fff"
+                                                    }}>
+                                                        {evt.isAd ? "📢 Iklan" : evt.category}
+                                                    </span>
+                                                )}
+                                                <h3 style={{ margin: "0 0 8px 0", fontSize: "1.75rem", fontWeight: "700" }}>
+                                                    {evt.title}
+                                                </h3>
+                                                <p style={{ margin: 0, opacity: 0.9, maxWidth: "500px" }}>
+                                                    {evt.isAd ? "Klik untuk info lebih lanjut" : (evt.description || "").substring(0, 120) + "..."}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+
+                                    // For ads, use external link. For events, use React Router Link
+                                    return evt.isAd ? (
+                                        <a
+                                            key={evt.id}
+                                            href={evt.target_url || "#"}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ minWidth: "100%", display: "block", textDecoration: "none" }}
+                                        >
+                                            {slideContent}
+                                        </a>
+                                    ) : (
+                                        <Link
+                                            key={evt.id}
+                                            to={`/event/${evt.id}`}
+                                            style={{ minWidth: "100%", display: "block", textDecoration: "none" }}
+                                        >
+                                            {slideContent}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Dots */}
+                            <div style={{
+                                position: "absolute",
+                                bottom: "16px",
+                                right: "32px",
+                                display: "flex",
+                                gap: "8px"
+                            }}>
+                                {featuredEvents.map((_, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setCurrentSlide(idx)}
+                                        style={{
+                                            width: currentSlide === idx ? "24px" : "8px",
+                                            height: "8px",
+                                            borderRadius: "4px",
+                                            background: currentSlide === idx ? "white" : "rgba(255,255,255,0.5)",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            transition: "all 0.3s ease"
+                                        }}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Nav Arrows */}
+                            {featuredEvents.length > 1 && (
+                                <>
+                                    <button
+                                        onClick={() => setCurrentSlide((prev) => (prev - 1 + featuredEvents.length) % featuredEvents.length)}
+                                        style={{
+                                            position: "absolute",
+                                            left: "16px",
+                                            top: "50%",
+                                            transform: "translateY(-50%)",
+                                            width: "40px",
+                                            height: "40px",
+                                            borderRadius: "50%",
+                                            background: "rgba(255,255,255,0.9)",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            fontSize: "1.2rem",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center"
+                                        }}
+                                    ><ChevronLeft size={24} color="#1e293b" /></button>
+                                    <button
+                                        onClick={() => setCurrentSlide((prev) => (prev + 1) % featuredEvents.length)}
+                                        style={{
+                                            position: "absolute",
+                                            right: "16px",
+                                            top: "50%",
+                                            transform: "translateY(-50%)",
+                                            width: "40px",
+                                            height: "40px",
+                                            borderRadius: "50%",
+                                            background: "rgba(255,255,255,0.9)",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center"
+                                        }}
+                                    ><ChevronRight size={24} color="#1e293b" /></button>
+                                </>
+                            )}
+                        </div>
+                    </div >
+                )
+                }
+
+
+
+                {/* SEKSI 1: UPCOMING EVENTS */}
+                {
+                    upcoming.length > 0 && (
+                        <div style={{ marginBottom: "48px" }}>
+                            <div className="section-title">
+                                <div style={{
+                                    width: "4px",
+                                    height: "32px",
+                                    background: "linear-gradient(180deg, #f59e0b, #d97706)",
+                                    borderRadius: "2px"
+                                }}></div>
+                                <Calendar size={24} color="#d97706" />
+                                <h2>Coming Soon</h2>
+                                <span style={{
+                                    fontSize: "0.8rem",
+                                    color: "#64748b",
+                                    background: "#f1f5f9",
+                                    padding: "4px 12px",
+                                    borderRadius: "20px",
+                                    fontWeight: 500
+                                }}>
+                                    Segera Hadir
+                                </span>
+                            </div>
+
+                            <div className="event-grid">
+                                {upcoming.map(evt => (
+                                    <EventCard key={evt.id} event={evt} isUpcoming={true} formatDate={formatDate} getThumbnailUrl={getThumbnailUrl} />
+                                ))}
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* SEKSI 2: AVAILABLE NOW */}
+                <div>
                     <div className="section-title">
                         <div style={{
                             width: "4px",
                             height: "32px",
-                            background: "linear-gradient(180deg, #f59e0b, #d97706)",
+                            background: "linear-gradient(180deg, #22c55e, #16a34a)",
                             borderRadius: "2px"
                         }}></div>
-                        <Calendar size={24} color="#d97706" />
-                        <h2>Coming Soon</h2>
-                        <span style={{
-                            fontSize: "0.8rem",
-                            color: "#64748b",
-                            background: "#f1f5f9",
-                            padding: "4px 12px",
-                            borderRadius: "20px",
-                            fontWeight: 500
-                        }}>
-                            Segera Hadir
-                        </span>
+                        <Crown size={24} color="#e5ff00ff" fill="#f0c504ff" />
+                        <h2>Available Now</h2>
                     </div>
 
-                    <div className="event-grid">
-                        {upcoming.map(evt => (
-                            <EventCard key={evt.id} event={evt} isUpcoming={true} formatDate={formatDate} getThumbnailUrl={getThumbnailUrl} />
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* SEKSI 2: AVAILABLE NOW */}
-            <div>
-                <div className="section-title">
-                    <div style={{
-                        width: "4px",
-                        height: "32px",
-                        background: "linear-gradient(180deg, #22c55e, #16a34a)",
-                        borderRadius: "2px"
-                    }}></div>
-                    <Crown size={24} color="#e5ff00ff" fill="#f0c504ff" />
-                    <h2>Available Now</h2>
-                </div>
-
-                {events.length === 0 ? (
-                    <div className="empty-state">
-                        <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
-                            <Inbox size={64} color="#cbd5e1" />
+                    {events.length === 0 ? (
+                        <div className="empty-state">
+                            <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+                                <Inbox size={64} color="#cbd5e1" />
+                            </div>
+                            <p style={{ margin: 0 }}>Belum ada event yang aktif saat ini.</p>
                         </div>
-                        <p style={{ margin: 0 }}>Belum ada event yang aktif saat ini.</p>
-                    </div>
-                ) : (
-                    <div className="event-grid">
-                        {events.map(evt => (
-                            <EventCard key={evt.id} event={evt} isUpcoming={false} formatDate={formatDate} getThumbnailUrl={getThumbnailUrl} />
+                    ) : (
+                        <div className="event-grid">
+                            {events.map(evt => (
+                                <EventCard key={evt.id} event={evt} isUpcoming={false} formatDate={formatDate} getThumbnailUrl={getThumbnailUrl} />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div >
+
+            {/* RIGHT SIDEBAR ADS */}
+            {
+                sidebarRightAds.length > 0 && (
+                    <div className="sidebar-ad sidebar-ad-right">
+                        {sidebarRightAds.map(ad => (
+                            <a
+                                key={ad.id}
+                                href={ad.target_url || "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="sidebar-ad-item"
+                            >
+                                <img src={getAdImageUrl(ad.image_url)} alt={ad.title} />
+                                <div className="sidebar-ad-info">
+                                    <div className="sidebar-ad-title">{ad.title}</div>
+                                    <div className="sidebar-ad-label">Iklan</div>
+                                </div>
+                            </a>
                         ))}
                     </div>
-                )}
-            </div>
-        </div>
+                )
+            }
+        </div >
     );
 }
 

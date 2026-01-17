@@ -34,7 +34,19 @@ func ReviewOrganizationApplication(c *gin.Context) {
 	// Ambil data application
 	var application models.OrganizationApplication
 	err := config.DB.Get(&application,
-		"SELECT * FROM organization_applications WHERE id = ?",
+		`SELECT id, user_id, org_name, 
+		 COALESCE(org_description, '') AS org_description, 
+		 COALESCE(org_category, '') AS org_category, 
+		 COALESCE(org_logo_url, '') AS org_logo_url, 
+		 COALESCE(org_email, '') AS org_email, 
+		 COALESCE(org_phone, '') AS org_phone, 
+		 COALESCE(org_website, '') AS org_website,
+		 COALESCE(reason, '') AS reason, 
+		 COALESCE(social_media, '') AS social_media, 
+		 status, reviewed_by, reviewed_at, 
+		 COALESCE(review_note, '') AS review_note, 
+		 submitted_at
+		 FROM organization_applications WHERE id = ?`,
 		appID,
 	)
 

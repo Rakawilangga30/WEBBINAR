@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import toast from 'react-hot-toast';
@@ -10,24 +10,41 @@ function MyCart() {
     const [applyingPromo, setApplyingPromo] = useState(false);
     const [checkingOut, setCheckingOut] = useState(false);
     const navigate = useNavigate();
+    const isCheckingOutRef = useRef(false);
 
     useEffect(() => {
         fetchCart();
+
+        // Cleanup: reset affiliate code when leaving the page (unmount)
+        return () => {
+            // Only clear code if not currently checking out
+            if (!isCheckingOutRef.current) {
+                api.post('/user/cart/clear-code').catch(() => { });
+            }
+        };
     }, []);
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        isCheckingOutRef.current = checkingOut;
+    }, [checkingOut]);
 
     const fetchCart = async () => {
         try {
             const res = await api.get('/user/cart');
             setCart(res.data);
-            if (res.data?.affiliate_code) {
-                setPromoCode(res.data.affiliate_code);
-            }
+            // Don't pre-fill promo code from saved cart - let user enter fresh each time
+            // if (res.data?.affiliate_code) {
+            //     setPromoCode(res.data.affiliate_code);
+            // }
         } catch (err) {
             console.error('Error fetching cart:', err);
         } finally {
             setLoading(false);
         }
     };
+
+
 
     const handleRemoveItem = async (itemId) => {
         try {

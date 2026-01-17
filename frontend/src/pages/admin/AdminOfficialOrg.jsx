@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../api';
 
 export default function AdminOfficialOrg() {
@@ -42,29 +43,29 @@ export default function AdminOfficialOrg() {
         e.preventDefault();
         try {
             await api.put('/admin/official-org', editForm);
-            alert('✅ Berhasil diupdate!');
+            toast.success('Berhasil diupdate!');
             setEditing(false);
             fetchData();
         } catch (err) {
-            alert('Gagal: ' + (err.response?.data?.error || err.message));
+            toast.error('Gagal: ' + (err.response?.data?.error || err.message));
         }
     };
 
     const handleCreateEvent = async (e) => {
         e.preventDefault();
         if (!createForm.title.trim()) {
-            alert('Judul event wajib diisi');
+            toast.error('Judul event wajib diisi');
             return;
         }
         setCreating(true);
         try {
             await api.post('/admin/official-org/events', createForm);
-            alert('✅ Event berhasil dibuat!');
+            toast.success('Event berhasil dibuat!');
             setShowCreateModal(false);
             setCreateForm({ title: '', description: '', category: 'Teknologi' });
             fetchData();
         } catch (err) {
-            alert('Gagal: ' + (err.response?.data?.error || err.message));
+            toast.error('Gagal: ' + (err.response?.data?.error || err.message));
         } finally {
             setCreating(false);
         }
@@ -76,10 +77,10 @@ export default function AdminOfficialOrg() {
         }
         try {
             await api.delete(`/admin/official-org/events/${eventId}`);
-            alert('✅ Event berhasil dihapus!');
+            toast.success('Event berhasil dihapus!');
             fetchData();
         } catch (err) {
-            alert('Gagal: ' + (err.response?.data?.error || err.message));
+            toast.error('Gagal: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -92,7 +93,7 @@ export default function AdminOfficialOrg() {
             }
             fetchData();
         } catch (err) {
-            alert('Gagal: ' + (err.response?.data?.error || err.message));
+            toast.error('Gagal: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -168,10 +169,10 @@ export default function AdminOfficialOrg() {
                                         await api.post('/admin/official-org/logo', formData, {
                                             headers: { 'Content-Type': 'multipart/form-data' }
                                         });
-                                        alert('✅ Logo berhasil diupload!');
+                                        toast.success('Logo berhasil diupload!');
                                         fetchData();
                                     } catch (err) {
-                                        alert('Gagal upload: ' + (err.response?.data?.error || err.message));
+                                        toast.error('Gagal upload: ' + (err.response?.data?.error || err.message));
                                     }
                                 }}
                             />

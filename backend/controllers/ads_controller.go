@@ -80,9 +80,14 @@ func CreateAdBanner(c *gin.Context) {
 	}
 
 	// Validate placement
-	validPlacements := map[string]bool{"HOME_SLIDER": true, "SIDEBAR": true, "FOOTER": true}
+	validPlacements := map[string]bool{
+		"BANNER_SLIDER": true,
+		"SIDEBAR_LEFT":  true,
+		"SIDEBAR_RIGHT": true,
+		"HERO_SECTION":  true,
+	}
 	if !validPlacements[placement] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "placement harus HOME_SLIDER, SIDEBAR, atau FOOTER"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "placement harus BANNER_SLIDER, SIDEBAR_LEFT, SIDEBAR_RIGHT, atau HERO_SECTION"})
 		return
 	}
 

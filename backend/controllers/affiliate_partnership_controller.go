@@ -430,6 +430,191 @@ func RejectAffiliateRequest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Request ditolak"})
 }
 
+// UpdateAffiliatePartnership - Update affiliate code, commission, and expiry
+// PUT /organization/affiliate-requests/:id/update
+func UpdateAffiliatePartnership(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request ID"})
+		return
+	}
+
+	var input struct {
+		UniqueCode           string  `json:"unique_code"`
+		CommissionPercentage float64 `json:"commission_percentage"`
+		ExpiresAt            string  `json:"expires_at"` // Format: "2026-01-31" or empty
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak valid"})
+		return
+	}
+
+	// Get org ID
+	var orgID int64
+	config.DB.Get(&orgID, "SELECT id FROM organizations WHERE owner_user_id = ?", userID)
+
+	// Get partnership
+	var partnership struct {
+		ID             int64 `db:"id"`
+		UserID         int64 `db:"user_id"`
+		OrganizationID int64 `db:"organization_id"`
+		EventID        int64 `db:"event_id"`
+	}
+	err = config.DB.Get(&partnership, "SELECT id, user_id, organization_id, event_id FROM affiliate_partnerships WHERE id = ?", requestID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Affiliate tidak ditemukan"})
+		return
+	}
+
+	if partnership.OrganizationID != orgID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak"})
+		return
+	}
+
+	// Validate commission
+	if input.CommissionPercentage < 1 || input.CommissionPercentage > 50 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Komisi harus antara 1% - 50%"})
+		return
+	}
+
+	// Check unique code uniqueness
+	if input.UniqueCode != "" {
+		var existingCount int
+		config.DB.Get(&existingCount, "SELECT COUNT(*) FROM affiliate_partnerships WHERE unique_code = ? AND id != ?", input.UniqueCode, requestID)
+		if existingCount > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode unik sudah digunakan"})
+			return
+		}
+	}
+
+	// Update
+	if input.ExpiresAt != "" {
+		_, err = config.DB.Exec(`
+			UPDATE affiliate_partnerships 
+			SET unique_code = ?, commission_percentage = ?, expires_at = ?
+			WHERE id = ?
+		`, input.UniqueCode, input.CommissionPercentage, input.ExpiresAt, requestID)
+	} else {
+		_, err = config.DB.Exec(`
+			UPDATE affiliate_partnerships 
+			SET unique_code = ?, commission_percentage = ?, expires_at = NULL
+			WHERE id = ?
+		`, input.UniqueCode, input.CommissionPercentage, requestID)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update: " + err.Error()})
+		return
+	}
+
+	// Notify affiliate
+	var eventTitle string
+	config.DB.Get(&eventTitle, "SELECT title FROM events WHERE id = ?", partnership.EventID)
+	CreateNotification(
+		partnership.UserID,
+		"affiliate_updated",
+		"📝 Kode Affiliate Diperbarui",
+		fmt.Sprintf("Kode affiliate untuk event \"%s\" telah diperbarui menjadi: %s", eventTitle, input.UniqueCode),
+	)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Affiliate berhasil diupdate"})
+}
+
+// ToggleAffiliateActive - Activate or deactivate affiliate
+// PUT /organization/affiliate-requests/:id/toggle-active
+func ToggleAffiliateActive(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	requestID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+
+	var orgID int64
+	config.DB.Get(&orgID, "SELECT id FROM organizations WHERE owner_user_id = ?", userID)
+
+	var partnership struct {
+		UserID         int64 `db:"user_id"`
+		OrganizationID int64 `db:"organization_id"`
+		EventID        int64 `db:"event_id"`
+		IsActive       bool  `db:"is_active"`
+	}
+	err := config.DB.Get(&partnership, "SELECT user_id, organization_id, event_id, COALESCE(is_active, 1) as is_active FROM affiliate_partnerships WHERE id = ?", requestID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Affiliate tidak ditemukan"})
+		return
+	}
+
+	if partnership.OrganizationID != orgID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak"})
+		return
+	}
+
+	newStatus := !partnership.IsActive
+	config.DB.Exec("UPDATE affiliate_partnerships SET is_active = ? WHERE id = ?", newStatus, requestID)
+
+	var eventTitle string
+	config.DB.Get(&eventTitle, "SELECT title FROM events WHERE id = ?", partnership.EventID)
+
+	statusText := "sudah tidak aktif"
+	if newStatus {
+		statusText = "aktif kembali"
+	}
+
+	CreateNotification(
+		partnership.UserID,
+		"affiliate_status_changed",
+		"🔔 Status Affiliate Berubah",
+		fmt.Sprintf("Kode affiliate untuk event \"%s\" telah %s", eventTitle, statusText),
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   fmt.Sprintf("Affiliate berhasil %s", statusText),
+		"is_active": newStatus,
+	})
+}
+
+// DeleteAffiliatePartnership - Remove affiliate partnership
+// DELETE /organization/affiliate-requests/:id
+func DeleteAffiliatePartnership(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	requestID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+
+	var orgID int64
+	config.DB.Get(&orgID, "SELECT id FROM organizations WHERE owner_user_id = ?", userID)
+
+	var partnership struct {
+		UserID         int64 `db:"user_id"`
+		OrganizationID int64 `db:"organization_id"`
+		EventID        int64 `db:"event_id"`
+	}
+	err := config.DB.Get(&partnership, "SELECT user_id, organization_id, event_id FROM affiliate_partnerships WHERE id = ?", requestID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Affiliate tidak ditemukan"})
+		return
+	}
+
+	if partnership.OrganizationID != orgID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak"})
+		return
+	}
+
+	_, err = config.DB.Exec("DELETE FROM affiliate_partnerships WHERE id = ?", requestID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus: " + err.Error()})
+		return
+	}
+
+	var eventTitle string
+	config.DB.Get(&eventTitle, "SELECT title FROM events WHERE id = ?", partnership.EventID)
+
+	CreateNotification(
+		partnership.UserID,
+		"affiliate_removed",
+		"🚫 Kemitraan Affiliate Dihentikan",
+		fmt.Sprintf("Kemitraan affiliate untuk event \"%s\" telah dihentikan oleh organisasi", eventTitle),
+	)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Affiliate berhasil dihapus"})
+}
+
 // ===============================================
 // HELPER FUNCTIONS
 // ===============================================
@@ -448,16 +633,18 @@ func GetOrgAffiliateStats(c *gin.Context) {
 	}
 
 	var stats []struct {
-		ID                   int64   `db:"id" json:"id"`
-		UserID               int64   `db:"user_id" json:"user_id"`
-		UserName             string  `db:"user_name" json:"user_name"`
-		UserEmail            string  `db:"user_email" json:"user_email"`
-		EventID              int64   `db:"event_id" json:"event_id"`
-		EventTitle           string  `db:"event_title" json:"event_title"`
-		UniqueCode           string  `db:"unique_code" json:"unique_code"`
-		CommissionPercentage float64 `db:"commission_percentage" json:"commission_percentage"`
-		TotalBuyers          int     `db:"total_buyers" json:"total_buyers"`
-		TotalEarnings        float64 `db:"total_earnings" json:"total_earnings"`
+		ID                   int64      `db:"id" json:"id"`
+		UserID               int64      `db:"user_id" json:"user_id"`
+		UserName             string     `db:"user_name" json:"user_name"`
+		UserEmail            string     `db:"user_email" json:"user_email"`
+		EventID              int64      `db:"event_id" json:"event_id"`
+		EventTitle           string     `db:"event_title" json:"event_title"`
+		UniqueCode           string     `db:"unique_code" json:"unique_code"`
+		CommissionPercentage float64    `db:"commission_percentage" json:"commission_percentage"`
+		ExpiresAt            *time.Time `db:"expires_at" json:"expires_at"`
+		IsActive             bool       `db:"is_active" json:"is_active"`
+		TotalBuyers          int        `db:"total_buyers" json:"total_buyers"`
+		TotalEarnings        float64    `db:"total_earnings" json:"total_earnings"`
 	}
 
 	// Simplified query - get approved affiliates first
@@ -465,6 +652,7 @@ func GetOrgAffiliateStats(c *gin.Context) {
 		SELECT 
 			ap.id, ap.user_id, u.name as user_name, u.email as user_email,
 			ap.event_id, e.title as event_title, ap.unique_code, ap.commission_percentage,
+			ap.expires_at, COALESCE(ap.is_active, 1) as is_active,
 			0 as total_buyers, 0 as total_earnings
 		FROM affiliate_partnerships ap
 		JOIN users u ON ap.user_id = u.id
@@ -503,16 +691,18 @@ func GetOrgAffiliateStats(c *gin.Context) {
 
 	if stats == nil {
 		stats = make([]struct {
-			ID                   int64   `db:"id" json:"id"`
-			UserID               int64   `db:"user_id" json:"user_id"`
-			UserName             string  `db:"user_name" json:"user_name"`
-			UserEmail            string  `db:"user_email" json:"user_email"`
-			EventID              int64   `db:"event_id" json:"event_id"`
-			EventTitle           string  `db:"event_title" json:"event_title"`
-			UniqueCode           string  `db:"unique_code" json:"unique_code"`
-			CommissionPercentage float64 `db:"commission_percentage" json:"commission_percentage"`
-			TotalBuyers          int     `db:"total_buyers" json:"total_buyers"`
-			TotalEarnings        float64 `db:"total_earnings" json:"total_earnings"`
+			ID                   int64      `db:"id" json:"id"`
+			UserID               int64      `db:"user_id" json:"user_id"`
+			UserName             string     `db:"user_name" json:"user_name"`
+			UserEmail            string     `db:"user_email" json:"user_email"`
+			EventID              int64      `db:"event_id" json:"event_id"`
+			EventTitle           string     `db:"event_title" json:"event_title"`
+			UniqueCode           string     `db:"unique_code" json:"unique_code"`
+			CommissionPercentage float64    `db:"commission_percentage" json:"commission_percentage"`
+			ExpiresAt            *time.Time `db:"expires_at" json:"expires_at"`
+			IsActive             bool       `db:"is_active" json:"is_active"`
+			TotalBuyers          int        `db:"total_buyers" json:"total_buyers"`
+			TotalEarnings        float64    `db:"total_earnings" json:"total_earnings"`
 		}, 0)
 	}
 

@@ -239,19 +239,35 @@ func ApplyAffiliateCode(c *gin.Context) {
 		return
 	}
 
-	// Validate code exists and is approved
+	// Validate code exists, is approved, active, and not expired
 	var partnership struct {
 		ID                   int64   `db:"id"`
 		EventID              int64   `db:"event_id"`
 		CommissionPercentage float64 `db:"commission_percentage"`
+		IsActive             bool    `db:"is_active"`
+		IsExpired            bool    `db:"is_expired"`
 	}
 	err := config.DB.Get(&partnership, `
-		SELECT id, event_id, commission_percentage 
+		SELECT id, event_id, commission_percentage, 
+			COALESCE(is_active, 1) as is_active,
+			CASE WHEN expires_at IS NOT NULL AND expires_at < NOW() THEN 1 ELSE 0 END as is_expired
 		FROM affiliate_partnerships 
 		WHERE unique_code = ? AND status = 'APPROVED'
 	`, input.Code)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode promo tidak valid"})
+		return
+	}
+
+	// Check if code is active
+	if !partnership.IsActive {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode promo sudah tidak aktif"})
+		return
+	}
+
+	// Check if code is expired
+	if partnership.IsExpired {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode promo sudah kadaluarsa"})
 		return
 	}
 
@@ -281,4 +297,14 @@ func ClearCart(c *gin.Context) {
 	config.DB.Exec("UPDATE carts SET affiliate_code = NULL WHERE user_id = ?", userID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Keranjang dikosongkan"})
+}
+
+// ClearAffiliateCode - Clear only affiliate code from cart (keep items)
+// DELETE /user/cart/clear-code OR POST /user/cart/clear-code
+func ClearAffiliateCode(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	config.DB.Exec("UPDATE carts SET affiliate_code = NULL WHERE user_id = ?", userID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Kode affiliate dihapus"})
 }

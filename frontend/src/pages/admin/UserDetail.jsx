@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../../api";
 
 export default function UserDetail() {
@@ -11,6 +12,12 @@ export default function UserDetail() {
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [editForm, setEditForm] = useState({ name: "", email: "", phone: "", bio: "", reason: "" });
+
+    // Modal states
+    const [showReasonModal, setShowReasonModal] = useState(false);
+    const [reasonInput, setReasonInput] = useState("");
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showRoleModal, setShowRoleModal] = useState(null); // { role, adminLevel, label }
 
     useEffect(() => {
         fetchUserDetail();
@@ -45,33 +52,41 @@ export default function UserDetail() {
     };
 
     const handleUpdate = async () => {
-        // Prompt for reason
-        const reason = prompt("📝 Masukkan alasan perubahan profil user ini:");
-        if (reason === null) return; // User cancelled
-        if (!reason.trim()) {
-            alert("⚠️ Alasan perubahan wajib diisi!");
+        // Show reason modal
+        setReasonInput("");
+        setShowReasonModal(true);
+    };
+
+    const confirmUpdate = async () => {
+        if (!reasonInput.trim()) {
+            toast.error("Alasan perubahan wajib diisi!");
             return;
         }
 
         try {
-            await api.put(`/admin/users/${userId}`, { ...editForm, reason: reason });
-            alert("✅ User berhasil diupdate! User akan menerima notifikasi perubahan.");
+            await api.put(`/admin/users/${userId}`, { ...editForm, reason: reasonInput });
+            toast.success("User berhasil diupdate! User akan menerima notifikasi perubahan.");
             setEditMode(false);
+            setShowReasonModal(false);
+            setReasonInput("");
             fetchUserDetail();
         } catch (error) {
-            alert("❌ Gagal update user: " + (error.response?.data?.error || error.message));
+            toast.error("Gagal update user: " + (error.response?.data?.error || error.message));
         }
     };
 
     const handleDelete = async () => {
-        if (!window.confirm("⚠️ Yakin ingin menghapus user ini? Data akan dihapus permanen dan user akan menerima notifikasi.")) return;
+        setShowDeleteModal(true);
+    };
 
+    const confirmDelete = async () => {
         try {
             await api.delete(`/admin/users/${userId}`);
-            alert("✅ User berhasil dihapus!");
+            toast.success("User berhasil dihapus!");
+            setShowDeleteModal(false);
             navigate("/dashboard/admin/users");
         } catch (error) {
-            alert("❌ Gagal hapus user: " + (error.response?.data?.error || error.message));
+            toast.error("Gagal hapus user: " + (error.response?.data?.error || error.message));
         }
     };
 
@@ -82,17 +97,23 @@ export default function UserDetail() {
             "ADMIN": adminLevel === 1 ? "Super Admin" : "Admin"
         };
 
-        if (!window.confirm(`⚠️ Yakin ingin mengubah role user ini menjadi ${roleLabels[role]}?`)) return;
+        setShowRoleModal({ role, adminLevel, label: roleLabels[role] });
+    };
+
+    const confirmSetRole = async () => {
+        if (!showRoleModal) return;
+        const { role, adminLevel } = showRoleModal;
 
         try {
             const res = await api.post(`/admin/users/${userId}/set-role`, {
                 role: role,
                 admin_level: adminLevel
             });
-            alert(`✅ ${res.data.message}`);
+            toast.success(res.data.message);
+            setShowRoleModal(null);
             fetchUserDetail();
         } catch (error) {
-            alert("❌ Gagal: " + (error.response?.data?.error || error.message));
+            toast.error("Gagal: " + (error.response?.data?.error || error.message));
         }
     };
 
@@ -415,6 +436,60 @@ export default function UserDetail() {
                     )}
                 </div>
             )}
+
+            {/* Update Reason Modal */}
+            {showReasonModal && (
+                <div style={modalOverlay}>
+                    <div style={modalContent}>
+                        <h3 style={{ margin: "0 0 16px 0", color: "#1e293b" }}>📝 Alasan Perubahan</h3>
+                        <p style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: "16px" }}>
+                            Masukkan alasan perubahan profil user ini (akan dikirim ke user):
+                        </p>
+                        <textarea
+                            value={reasonInput}
+                            onChange={(e) => setReasonInput(e.target.value)}
+                            placeholder="Contoh: Update data berdasarkan verifikasi dokumen"
+                            style={{ ...inputStyle, minHeight: "100px", marginBottom: "16px" }}
+                        />
+                        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                            <button onClick={() => setShowReasonModal(false)} style={btnSecondary}>Batal</button>
+                            <button onClick={confirmUpdate} style={btnPrimary}>💾 Simpan Perubahan</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && (
+                <div style={modalOverlay}>
+                    <div style={modalContent}>
+                        <h3 style={{ margin: "0 0 16px 0", color: "#dc2626" }}>⚠️ Konfirmasi Hapus</h3>
+                        <p style={{ color: "#64748b", marginBottom: "20px" }}>
+                            Yakin ingin menghapus user <strong>{user?.name}</strong>? Data akan dihapus permanen dan user akan menerima notifikasi.
+                        </p>
+                        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                            <button onClick={() => setShowDeleteModal(false)} style={btnSecondary}>Batal</button>
+                            <button onClick={confirmDelete} style={btnDanger}>🗑️ Hapus Permanen</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Role Change Modal */}
+            {showRoleModal && (
+                <div style={modalOverlay}>
+                    <div style={modalContent}>
+                        <h3 style={{ margin: "0 0 16px 0", color: "#f59e0b" }}>⚠️ Ubah Role User</h3>
+                        <p style={{ color: "#64748b", marginBottom: "20px" }}>
+                            Yakin ingin mengubah role user <strong>{user?.name}</strong> menjadi <strong>{showRoleModal.label}</strong>?
+                        </p>
+                        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                            <button onClick={() => setShowRoleModal(null)} style={btnSecondary}>Batal</button>
+                            <button onClick={confirmSetRole} style={btnWarning}>✅ Konfirmasi</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -485,4 +560,26 @@ const btnWarning = {
     cursor: "pointer",
     fontWeight: "600",
     fontSize: "0.85rem"
+};
+
+const modalOverlay = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0, 0, 0, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+};
+
+const modalContent = {
+    background: "white",
+    padding: "24px",
+    borderRadius: "16px",
+    width: "100%",
+    maxWidth: "450px",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
 };

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import api from '../../api';
 
 export default function AdminReports() {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('ALL');
+    const [selectedImage, setSelectedImage] = useState(null);
 
     useEffect(() => {
         fetchReports();
@@ -26,7 +28,7 @@ export default function AdminReports() {
             await api.put(`/admin/reports/${id}`, { status, admin_notes: notes });
             fetchReports();
         } catch (error) {
-            alert('Gagal update status');
+            toast.error('Gagal update status');
         }
     };
 
@@ -161,7 +163,24 @@ export default function AdminReports() {
                                 <img
                                     src={`http://localhost:8080/${report.photo_url}`}
                                     alt="Screenshot"
-                                    style={{ width: "80px", height: "60px", objectFit: "cover", borderRadius: "8px" }}
+                                    onClick={() => setSelectedImage(`http://localhost:8080/${report.photo_url}`)}
+                                    style={{
+                                        width: "80px",
+                                        height: "60px",
+                                        objectFit: "cover",
+                                        borderRadius: "8px",
+                                        cursor: "pointer",
+                                        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                                        border: "2px solid #e2e8f0"
+                                    }}
+                                    onMouseOver={(e) => {
+                                        e.target.style.transform = "scale(1.05)";
+                                        e.target.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                                    }}
+                                    onMouseOut={(e) => {
+                                        e.target.style.transform = "scale(1)";
+                                        e.target.style.boxShadow = "none";
+                                    }}
                                 />
                             )}
                         </div>
@@ -192,6 +211,72 @@ export default function AdminReports() {
                     </div>
                 ))}
             </div>
+
+            {/* Image Preview Modal */}
+            {selectedImage && (
+                <div
+                    onClick={() => setSelectedImage(null)}
+                    style={{
+                        position: "fixed",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: "rgba(0,0,0,0.85)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 9999,
+                        cursor: "zoom-out",
+                        padding: "40px"
+                    }}
+                >
+                    <div style={{ position: "relative", maxWidth: "90vw", maxHeight: "90vh" }}>
+                        <img
+                            src={selectedImage}
+                            alt="Preview"
+                            style={{
+                                maxWidth: "100%",
+                                maxHeight: "85vh",
+                                objectFit: "contain",
+                                borderRadius: "12px",
+                                boxShadow: "0 20px 60px rgba(0,0,0,0.5)"
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <button
+                            onClick={() => setSelectedImage(null)}
+                            style={{
+                                position: "absolute",
+                                top: "-15px",
+                                right: "-15px",
+                                width: "40px",
+                                height: "40px",
+                                borderRadius: "50%",
+                                background: "white",
+                                border: "none",
+                                fontSize: "1.2rem",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+                            }}
+                        >
+                            ✕
+                        </button>
+                        <div style={{
+                            textAlign: "center",
+                            marginTop: "16px",
+                            color: "white",
+                            fontSize: "0.9rem",
+                            opacity: 0.8
+                        }}>
+                            Klik di luar gambar atau tombol ✕ untuk menutup
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -206,3 +291,4 @@ const actionBtn = (color) => ({
     fontWeight: "600",
     fontSize: "0.85rem"
 });
+

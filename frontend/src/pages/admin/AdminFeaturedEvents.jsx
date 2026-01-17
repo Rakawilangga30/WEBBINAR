@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../../api";
 
 export default function AdminFeaturedEvents() {
@@ -32,7 +33,7 @@ export default function AdminFeaturedEvents() {
 
     const handleAdd = async (eventId) => {
         if (featuredEvents.length >= 10) {
-            alert("Maksimal 10 event featured!");
+            toast.error("Maksimal 10 event featured!");
             return;
         }
         setAdding(true);
@@ -40,7 +41,7 @@ export default function AdminFeaturedEvents() {
             await api.post("/admin/featured-events", { event_id: eventId });
             await fetchData();
         } catch (err) {
-            alert("Gagal menambahkan: " + (err.response?.data?.error || err.message));
+            toast.error("Gagal menambahkan: " + (err.response?.data?.error || err.message));
         } finally {
             setAdding(false);
         }
@@ -52,7 +53,7 @@ export default function AdminFeaturedEvents() {
             await api.delete(`/admin/featured-events/${id}`);
             await fetchData();
         } catch (err) {
-            alert("Gagal menghapus: " + err.message);
+            toast.error("Gagal menghapus: " + err.message);
         }
     };
 

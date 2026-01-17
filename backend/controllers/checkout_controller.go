@@ -34,6 +34,27 @@ func CheckoutCart(c *gin.Context) {
 		return
 	}
 
+	// Validate affiliate code if present - check if still active and not expired
+	if cart.AffiliateCode != nil && *cart.AffiliateCode != "" {
+		var validCode struct {
+			IsActive  bool `db:"is_active"`
+			IsExpired bool `db:"is_expired"`
+		}
+		err := config.DB.Get(&validCode, `
+			SELECT COALESCE(is_active, 1) as is_active,
+				CASE WHEN expires_at IS NOT NULL AND expires_at < NOW() THEN 1 ELSE 0 END as is_expired
+			FROM affiliate_partnerships 
+			WHERE unique_code = ? AND status = 'APPROVED'
+		`, *cart.AffiliateCode)
+
+		if err != nil || !validCode.IsActive || validCode.IsExpired {
+			// Clear invalid/expired/inactive affiliate code from cart
+			config.DB.Exec("UPDATE carts SET affiliate_code = NULL WHERE id = ?", cart.ID)
+			cart.AffiliateCode = nil
+			fmt.Printf("[CHECKOUT] Cleared invalid/inactive/expired affiliate code\n")
+		}
+	}
+
 	// Get cart items
 	var items []struct {
 		ID        int64   `db:"id"`
@@ -266,16 +287,19 @@ func ProcessCartPayment(orderID string, grossAmount string) error {
 
 		hasAffiliate := false
 		if affiliateCode != nil {
+			// Only credit affiliate if code is active and not expired
 			err := tx.Get(&partnership, `
 				SELECT user_id, commission_percentage 
 				FROM affiliate_partnerships 
 				WHERE unique_code = ? AND event_id = ? AND status = 'APPROVED'
+					AND COALESCE(is_active, 1) = 1
+					AND (expires_at IS NULL OR expires_at >= NOW())
 			`, *affiliateCode, purchase.EventID)
 			if err == nil {
 				hasAffiliate = true
-				fmt.Printf("[CART-PAYMENT] ✅ Found affiliate partnership: user=%d, commission=%.2f%%\n", partnership.UserID, partnership.CommissionPercentage)
+				fmt.Printf("[CART-PAYMENT] ✅ Found active affiliate partnership: user=%d, commission=%.2f%%\n", partnership.UserID, partnership.CommissionPercentage)
 			} else {
-				fmt.Printf("[CART-PAYMENT] ⚠️ No matching partnership for code=%s, event=%d: %v\n", *affiliateCode, purchase.EventID, err)
+				fmt.Printf("[CART-PAYMENT] ⚠️ No valid/active partnership for code=%s, event=%d: %v\n", *affiliateCode, purchase.EventID, err)
 			}
 		}
 

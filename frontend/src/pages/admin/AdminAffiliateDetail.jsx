@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../api';
 
 export default function AdminAffiliateDetail() {
@@ -89,13 +90,13 @@ export default function AdminAffiliateDetail() {
         note: reviewNote
       });
 
-      alert(action === 'APPROVE'
+      toast.success(action === 'APPROVE'
         ? `Event berhasil disimpan ke draft! Event ID: ${response.data.event_id}`
         : 'Pengajuan telah ditolak.');
 
       navigate('/dashboard/admin/affiliates');
     } catch (err) {
-      alert(err.response?.data?.error || 'Gagal memproses review');
+      toast.error(err.response?.data?.error || 'Gagal memproses review');
     } finally {
       setProcessing(false);
     }

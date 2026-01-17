@@ -90,6 +90,8 @@ func RegisterRoutes(r *gin.Engine) {
 		userGroup.DELETE("/cart/items/:id", controllers.RemoveFromCart)
 		userGroup.POST("/cart/apply-code", controllers.ApplyAffiliateCode)
 		userGroup.DELETE("/cart", controllers.ClearCart)
+		userGroup.POST("/cart/clear-code", controllers.ClearAffiliateCode)
+		userGroup.DELETE("/cart/clear-code", controllers.ClearAffiliateCode)
 		userGroup.POST("/cart/checkout", controllers.CheckoutCart)
 
 		// Withdrawal Requests History
@@ -197,6 +199,9 @@ func RegisterRoutes(r *gin.Engine) {
 		org.GET("/affiliate-requests", controllers.GetAffiliateRequests)
 		org.PUT("/affiliate-requests/:id/approve", controllers.ApproveAffiliateRequest)
 		org.PUT("/affiliate-requests/:id/reject", controllers.RejectAffiliateRequest)
+		org.PUT("/affiliate-requests/:id/update", controllers.UpdateAffiliatePartnership)
+		org.PUT("/affiliate-requests/:id/toggle-active", controllers.ToggleAffiliateActive)
+		org.DELETE("/affiliate-requests/:id", controllers.DeleteAffiliatePartnership)
 		org.GET("/affiliate-stats", controllers.GetOrgAffiliateStats)
 	}
 
