@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -76,5 +77,9 @@ func main() {
 	// r.Use(middlewares.BlockStaticAccess())
 
 	// Start server
-	r.Run(":8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	r.Run(":" + port)
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../api';
+import { getBackendUrl } from '../../utils/url';
 
 export default function AdminAffiliateDetail() {
   const { id } = useParams();
@@ -158,7 +159,7 @@ export default function AdminAffiliateDetail() {
           {getPosterURL() && (
             <div className="poster-section">
               <img
-                src={`http://localhost:8080/${getPosterURL()}`}
+                src={getBackendUrl(getPosterURL())}
                 alt="Poster"
                 className="poster-image"
               />
@@ -267,14 +268,14 @@ export default function AdminAffiliateDetail() {
                       <video
                         controls
                         className="video-player"
-                        src={`http://localhost:8080/${video.url}`}
+                        src={getBackendUrl(video.url)}
                       >
                         Browser tidak mendukung video
                       </video>
                     </div>
                     <div className="material-actions">
                       <a
-                        href={`http://localhost:8080/${video.url}`}
+                        href={getBackendUrl(video.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-open"
@@ -282,7 +283,7 @@ export default function AdminAffiliateDetail() {
                         🔗 Buka di Tab Baru
                       </a>
                       <a
-                        href={`http://localhost:8080/${video.url}`}
+                        href={getBackendUrl(video.url)}
                         download
                         className="btn-download"
                       >
@@ -316,7 +317,7 @@ export default function AdminAffiliateDetail() {
                       {isPDF && (
                         <div className="pdf-preview">
                           <iframe
-                            src={`http://localhost:8080/${file.url}`}
+                            src={getBackendUrl(file.url)}
                             title={file.title || `File ${index + 1}`}
                             className="pdf-viewer"
                           />
@@ -325,7 +326,7 @@ export default function AdminAffiliateDetail() {
 
                       <div className="material-actions">
                         <a
-                          href={`http://localhost:8080/${file.url}`}
+                          href={getBackendUrl(file.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-open"
@@ -333,7 +334,7 @@ export default function AdminAffiliateDetail() {
                           🔗 Buka di Tab Baru
                         </a>
                         <a
-                          href={`http://localhost:8080/${file.url}`}
+                          href={getBackendUrl(file.url)}
                           download
                           className="btn-download"
                         >

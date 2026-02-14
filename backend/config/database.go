@@ -23,6 +23,11 @@ func ConnectDB() {
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", user, pass, host, name)
 
+	// Tambahkan TLS jika dibutuhkan (wajib untuk TiDB Cloud)
+	if os.Getenv("DB_TLS") == "true" {
+		dsn += "&tls=true"
+	}
+
 	var err error
 	DB, err = sqlx.Connect("mysql", dsn)
 	if err != nil {

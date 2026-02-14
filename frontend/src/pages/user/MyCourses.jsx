@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api";
+import { getBackendUrl } from "../../utils/url";
 
 export default function MyCourses() {
     const [courses, setCourses] = useState([]);
@@ -138,7 +139,7 @@ export default function MyCourses() {
                             }}>
                                 {eventGroup.thumbnail ? (
                                     <img
-                                        src={`http://localhost:8080/${eventGroup.thumbnail}`}
+                                        src={getBackendUrl(eventGroup.thumbnail)}
                                         alt={eventGroup.event_title}
                                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                     />

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../api';
+import { getBackendUrl } from '../../utils/url';
 import QuizBuilder from '../../components/QuizBuilder';
 
 export default function AdminOfficialOrgEventDetail() {
@@ -284,7 +285,7 @@ export default function AdminOfficialOrgEventDetail() {
             <div style={cardStyle}>
                 <h3 style={{ margin: "0 0 16px 0", color: "#1e293b" }}>🖼️ Thumbnail</h3>
                 <div style={{ display: "flex", gap: "24px", alignItems: "flex-start", flexWrap: "wrap" }}>
-                    {event.thumbnail_url && <img src={`http://localhost:8080/${event.thumbnail_url}`} alt="Thumbnail" style={{ width: "200px", borderRadius: "8px", objectFit: "cover" }} />}
+                    {event.thumbnail_url && <img src={getBackendUrl(event.thumbnail_url)} alt="Thumbnail" style={{ width: "200px", borderRadius: "8px", objectFit: "cover" }} />}
                     <div>
                         <input type="file" accept="image/*" id="thumb-upload" style={{ display: "none" }} onChange={handleUploadThumbnail} />
                         <label htmlFor="thumb-upload" style={{ ...btnSecondary, cursor: "pointer", display: "inline-block" }}>📤 Upload Thumbnail</label>
@@ -403,7 +404,7 @@ export default function AdminOfficialOrgEventDetail() {
                                                         </div>
                                                         {playingVideo === video.id && (
                                                             <video controls autoPlay style={{ width: "100%", maxHeight: "400px", borderRadius: "8px", marginTop: "8px" }}>
-                                                                <source src={`http://localhost:8080/${video.video_url}`} type="video/mp4" />
+                                                                <source src={getBackendUrl(video.video_url)} type="video/mp4" />
                                                             </video>
                                                         )}
                                                     </>
@@ -427,7 +428,7 @@ export default function AdminOfficialOrgEventDetail() {
                                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                         <strong>{file.title}</strong>
                                                         <div style={{ display: "flex", gap: "8px" }}>
-                                                            <a href={`http://localhost:8080/${file.file_url}`} target="_blank" style={btnSecondarySmall}>📥</a>
+                                                            <a href={getBackendUrl(file.file_url)} target="_blank" style={btnSecondarySmall}>📥</a>
                                                             <button onClick={() => setEditingFile(file.id)} style={btnSecondarySmall}>✏️</button>
                                                             <button onClick={() => handleDeleteFile(file.id)} style={btnDangerSmall}>🗑️</button>
                                                         </div>

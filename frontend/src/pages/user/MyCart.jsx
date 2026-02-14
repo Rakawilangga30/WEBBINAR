@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { getBackendUrl } from '../../utils/url';
 import toast from 'react-hot-toast';
 
 function MyCart() {
@@ -246,7 +247,7 @@ function MyCart() {
                                     alignItems: "center"
                                 }}>
                                     <img
-                                        src={item.thumbnail_url ? `http://localhost:8080/${item.thumbnail_url}` : '/placeholder.jpg'}
+                                        src={item.thumbnail_url ? getBackendUrl(item.thumbnail_url) : '/placeholder.jpg'}
                                         alt={item.item_title}
                                         style={{
                                             width: "100px",

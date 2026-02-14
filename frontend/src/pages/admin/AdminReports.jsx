@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../api';
+import { getBackendUrl } from '../../utils/url';
 
 export default function AdminReports() {
     const [reports, setReports] = useState([]);
@@ -161,9 +162,9 @@ export default function AdminReports() {
                             </div>
                             {report.photo_url && (
                                 <img
-                                    src={`http://localhost:8080/${report.photo_url}`}
+                                    src={getBackendUrl(report.photo_url)}
                                     alt="Screenshot"
-                                    onClick={() => setSelectedImage(`http://localhost:8080/${report.photo_url}`)}
+                                    onClick={() => setSelectedImage(getBackendUrl(report.photo_url))}
                                     style={{
                                         width: "80px",
                                         height: "60px",

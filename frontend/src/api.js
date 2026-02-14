@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // 1. Konfigurasi Dasar
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -64,7 +64,7 @@ export const updateSession = async (sessionID, data) => {
 export const uploadEventThumbnail = async (eventID, file) => {
     const formData = new FormData();
     formData.append("thumbnail", file); // Key harus sesuai dengan backend ("thumbnail")
-    
+
     const response = await api.post(`/organization/events/${eventID}/thumbnail`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
     });

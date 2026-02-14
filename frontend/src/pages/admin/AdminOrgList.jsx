@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../../api";
+import { getBackendUrl } from "../../utils/url";
 
 export default function AdminOrgList() {
     const [organizations, setOrganizations] = useState([]);
@@ -31,7 +32,7 @@ export default function AdminOrgList() {
     const getImgUrl = (path) => {
         if (!path) return null;
         if (path.startsWith("http")) return path;
-        return `http://localhost:8080/${path}`;
+        return getBackendUrl(path);
     };
 
     const handleDelete = (org) => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../../api";
+import { getBackendUrl } from "../../utils/url";
 
 export default function OrgApplicationDetail() {
     const { appId } = useParams();
@@ -20,7 +21,7 @@ export default function OrgApplicationDetail() {
     const getImgUrl = (path) => {
         if (!path) return null;
         if (path.startsWith("http")) return path;
-        return `http://localhost:8080/${path}`;
+        return getBackendUrl(path);
     };
 
     const fetchDetail = async () => {

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../../api";
+import { getBackendUrl } from "../../utils/url";
 
 export default function AdminFeaturedEvents() {
     const [featuredEvents, setFeaturedEvents] = useState([]);
@@ -191,7 +192,7 @@ export default function AdminFeaturedEvents() {
                                 }}>
                                     {item.thumbnail_url ? (
                                         <img
-                                            src={`http://localhost:8080/${item.thumbnail_url.replace(/^\/+/, "")}`}
+                                            src={getBackendUrl(item.thumbnail_url.replace(/^\/+/, ""))}
                                             alt=""
                                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                         />
@@ -316,7 +317,7 @@ export default function AdminFeaturedEvents() {
                                 }}>
                                     {evt.thumbnail_url ? (
                                         <img
-                                            src={`http://localhost:8080/${evt.thumbnail_url.replace(/^\/+/, "")}`}
+                                            src={getBackendUrl(evt.thumbnail_url.replace(/^\/+/, ""))}
                                             alt={evt.title}
                                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                         />

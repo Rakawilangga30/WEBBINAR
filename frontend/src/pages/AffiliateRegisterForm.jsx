@@ -1,294 +1,295 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { BACKEND_URL } from '../utils/url';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = `${BACKEND_URL}/api`;
 
 export default function AffiliateRegisterForm() {
-    const [formData, setFormData] = useState({
-        full_name: '',
-        email: '',
-        phone: '',
-        event_title: '',
-        event_description: '',
-        event_price: '',
-        bank_name: '',
-        bank_account_number: '',
-        bank_account_holder: '',
-    });
-    const [poster, setPoster] = useState(null);
-    const [posterPreview, setPosterPreview] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
-    const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    event_title: '',
+    event_description: '',
+    event_price: '',
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_holder: '',
+  });
+  const [poster, setPoster] = useState(null);
+  const [posterPreview, setPosterPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-    const handlePosterChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setPoster(file);
-            setPosterPreview(URL.createObjectURL(file));
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-
-        try {
-            const data = new FormData();
-            Object.keys(formData).forEach(key => {
-                data.append(key, formData[key]);
-            });
-            if (poster) {
-                data.append('poster', poster);
-            }
-
-            await axios.post(`${API_BASE_URL}/public/partner/submit`, data, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            setSuccess(true);
-        } catch (err) {
-            setError(err.response?.data?.error || 'Terjadi kesalahan. Silakan coba lagi.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (success) {
-        return (
-            <div className="affiliate-success-page">
-                <div className="success-container">
-                    <div className="success-icon">🎉</div>
-                    <h1>Pengajuan Berhasil!</h1>
-                    <p>
-                        Terima kasih telah mengajukan event Anda. Tim kami akan meninjau pengajuan
-                        dalam 1-3 hari kerja. Anda akan menerima notifikasi setelah pengajuan diproses.
-                    </p>
-                    <div className="success-actions">
-                        <Link to="/" className="btn-home">Kembali ke Beranda</Link>
-                        <button onClick={() => {
-                            setSuccess(false); setFormData({
-                                full_name: '',
-                                email: '',
-                                phone: '',
-                                event_title: '',
-                                event_description: '',
-                                event_price: '',
-                                bank_name: '',
-                                bank_account_number: '',
-                                bank_account_holder: '',
-                            }); setPoster(null); setPosterPreview(null);
-                        }} className="btn-new">
-                            Ajukan Event Lain
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
+  const handlePosterChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPoster(file);
+      setPosterPreview(URL.createObjectURL(file));
     }
+  };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = new FormData();
+      Object.keys(formData).forEach(key => {
+        data.append(key, formData[key]);
+      });
+      if (poster) {
+        data.append('poster', poster);
+      }
+
+      await axios.post(`${API_BASE_URL}/public/partner/submit`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setSuccess(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Terjadi kesalahan. Silakan coba lagi.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
     return (
-        <div className="affiliate-register-page">
-            <div className="affiliate-container">
-                <div className="affiliate-header">
-                    <Link to="/" className="back-link">← Kembali</Link>
-                    <h1>🤝 Jadi Partner Affiliate</h1>
-                    <p>Ajukan event Anda dan dapatkan 90% dari setiap penjualan!</p>
-                </div>
+      <div className="affiliate-success-page">
+        <div className="success-container">
+          <div className="success-icon">🎉</div>
+          <h1>Pengajuan Berhasil!</h1>
+          <p>
+            Terima kasih telah mengajukan event Anda. Tim kami akan meninjau pengajuan
+            dalam 1-3 hari kerja. Anda akan menerima notifikasi setelah pengajuan diproses.
+          </p>
+          <div className="success-actions">
+            <Link to="/" className="btn-home">Kembali ke Beranda</Link>
+            <button onClick={() => {
+              setSuccess(false); setFormData({
+                full_name: '',
+                email: '',
+                phone: '',
+                event_title: '',
+                event_description: '',
+                event_price: '',
+                bank_name: '',
+                bank_account_number: '',
+                bank_account_holder: '',
+              }); setPoster(null); setPosterPreview(null);
+            }} className="btn-new">
+              Ajukan Event Lain
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-                <form onSubmit={handleSubmit} className="affiliate-form">
-                    {error && <div className="error-message">{error}</div>}
+  return (
+    <div className="affiliate-register-page">
+      <div className="affiliate-container">
+        <div className="affiliate-header">
+          <Link to="/" className="back-link">← Kembali</Link>
+          <h1>🤝 Jadi Partner Affiliate</h1>
+          <p>Ajukan event Anda dan dapatkan 90% dari setiap penjualan!</p>
+        </div>
 
-                    {/* Personal Info Section */}
-                    <div className="form-section">
-                        <h3>📋 Informasi Pribadi</h3>
-                        <div className="form-grid">
-                            <div className="form-group">
-                                <label htmlFor="full_name">Nama Lengkap *</label>
-                                <input
-                                    type="text"
-                                    id="full_name"
-                                    name="full_name"
-                                    value={formData.full_name}
-                                    onChange={handleChange}
-                                    placeholder="Masukkan nama lengkap"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="email">Email *</label>
-                                <input
-                                    type="email"
-                                    id="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    placeholder="email@example.com"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="phone">No. Telepon</label>
-                                <input
-                                    type="tel"
-                                    id="phone"
-                                    name="phone"
-                                    value={formData.phone}
-                                    onChange={handleChange}
-                                    placeholder="08xxxxxxxxxx"
-                                />
-                            </div>
-                        </div>
-                    </div>
+        <form onSubmit={handleSubmit} className="affiliate-form">
+          {error && <div className="error-message">{error}</div>}
 
-                    {/* Event Info Section */}
-                    <div className="form-section">
-                        <h3>🎯 Informasi Event</h3>
-                        <div className="form-group">
-                            <label htmlFor="event_title">Judul Event *</label>
-                            <input
-                                type="text"
-                                id="event_title"
-                                name="event_title"
-                                value={formData.event_title}
-                                onChange={handleChange}
-                                placeholder="Contoh: Masterclass Digital Marketing 2024"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="event_description">Deskripsi Event</label>
-                            <textarea
-                                id="event_description"
-                                name="event_description"
-                                value={formData.event_description}
-                                onChange={handleChange}
-                                placeholder="Jelaskan tentang event Anda, apa yang akan peserta pelajari, dll."
-                                rows={5}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="event_price">Harga (Rp) *</label>
-                            <input
-                                type="number"
-                                id="event_price"
-                                name="event_price"
-                                value={formData.event_price}
-                                onChange={handleChange}
-                                placeholder="100000"
-                                min="0"
-                                required
-                            />
-                            <small className="price-note">
-                                💡 Anda akan menerima 90% dari harga ini untuk setiap penjualan
-                            </small>
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="poster">Poster/Thumbnail Event</label>
-                            <div className="poster-upload">
-                                {posterPreview ? (
-                                    <div className="poster-preview">
-                                        <img src={posterPreview} alt="Preview" />
-                                        <button type="button" onClick={() => { setPoster(null); setPosterPreview(null); }}>
-                                            ✕ Hapus
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <label className="upload-area">
-                                        <input
-                                            type="file"
-                                            id="poster"
-                                            accept="image/*"
-                                            onChange={handlePosterChange}
-                                        />
-                                        <div className="upload-placeholder">
-                                            <span>📷</span>
-                                            <p>Klik untuk upload poster</p>
-                                            <small>Format: JPG, PNG (Max 5MB)</small>
-                                        </div>
-                                    </label>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Bank Info Section */}
-                    <div className="form-section">
-                        <h3>🏦 Informasi Rekening (untuk pembayaran)</h3>
-                        <div className="form-grid">
-                            <div className="form-group">
-                                <label htmlFor="bank_name">Nama Bank</label>
-                                <select
-                                    id="bank_name"
-                                    name="bank_name"
-                                    value={formData.bank_name}
-                                    onChange={handleChange}
-                                >
-                                    <option value="">Pilih Bank</option>
-                                    <option value="BCA">BCA</option>
-                                    <option value="BNI">BNI</option>
-                                    <option value="BRI">BRI</option>
-                                    <option value="Mandiri">Mandiri</option>
-                                    <option value="CIMB Niaga">CIMB Niaga</option>
-                                    <option value="Danamon">Danamon</option>
-                                    <option value="Permata">Permata</option>
-                                    <option value="OCBC NISP">OCBC NISP</option>
-                                    <option value="Lainnya">Lainnya</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="bank_account_number">Nomor Rekening</label>
-                                <input
-                                    type="text"
-                                    id="bank_account_number"
-                                    name="bank_account_number"
-                                    value={formData.bank_account_number}
-                                    onChange={handleChange}
-                                    placeholder="1234567890"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="bank_account_holder">Nama Pemilik Rekening</label>
-                                <input
-                                    type="text"
-                                    id="bank_account_holder"
-                                    name="bank_account_holder"
-                                    value={formData.bank_account_holder}
-                                    onChange={handleChange}
-                                    placeholder="Sesuai buku tabungan"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Terms & Submit */}
-                    <div className="form-section terms-section">
-                        <div className="terms-box">
-                            <h4>📌 Ketentuan Partner Affiliate</h4>
-                            <ul>
-                                <li>Anda akan menerima <strong>90%</strong> dari setiap penjualan</li>
-                                <li>Platform mengambil <strong>10%</strong> sebagai biaya layanan</li>
-                                <li>Pembayaran dilakukan setiap akhir bulan</li>
-                                <li>Event akan ditinjau sebelum dipublikasikan</li>
-                                <li>Konten harus original dan tidak melanggar hak cipta</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <button type="submit" className="submit-btn" disabled={loading}>
-                        {loading ? 'Mengirim...' : '🚀 Ajukan Event Saya'}
-                    </button>
-                </form>
+          {/* Personal Info Section */}
+          <div className="form-section">
+            <h3>📋 Informasi Pribadi</h3>
+            <div className="form-grid">
+              <div className="form-group">
+                <label htmlFor="full_name">Nama Lengkap *</label>
+                <input
+                  type="text"
+                  id="full_name"
+                  name="full_name"
+                  value={formData.full_name}
+                  onChange={handleChange}
+                  placeholder="Masukkan nama lengkap"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="email">Email *</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="email@example.com"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="phone">No. Telepon</label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="08xxxxxxxxxx"
+                />
+              </div>
             </div>
+          </div>
 
-            <style>{`
+          {/* Event Info Section */}
+          <div className="form-section">
+            <h3>🎯 Informasi Event</h3>
+            <div className="form-group">
+              <label htmlFor="event_title">Judul Event *</label>
+              <input
+                type="text"
+                id="event_title"
+                name="event_title"
+                value={formData.event_title}
+                onChange={handleChange}
+                placeholder="Contoh: Masterclass Digital Marketing 2024"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="event_description">Deskripsi Event</label>
+              <textarea
+                id="event_description"
+                name="event_description"
+                value={formData.event_description}
+                onChange={handleChange}
+                placeholder="Jelaskan tentang event Anda, apa yang akan peserta pelajari, dll."
+                rows={5}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="event_price">Harga (Rp) *</label>
+              <input
+                type="number"
+                id="event_price"
+                name="event_price"
+                value={formData.event_price}
+                onChange={handleChange}
+                placeholder="100000"
+                min="0"
+                required
+              />
+              <small className="price-note">
+                💡 Anda akan menerima 90% dari harga ini untuk setiap penjualan
+              </small>
+            </div>
+            <div className="form-group">
+              <label htmlFor="poster">Poster/Thumbnail Event</label>
+              <div className="poster-upload">
+                {posterPreview ? (
+                  <div className="poster-preview">
+                    <img src={posterPreview} alt="Preview" />
+                    <button type="button" onClick={() => { setPoster(null); setPosterPreview(null); }}>
+                      ✕ Hapus
+                    </button>
+                  </div>
+                ) : (
+                  <label className="upload-area">
+                    <input
+                      type="file"
+                      id="poster"
+                      accept="image/*"
+                      onChange={handlePosterChange}
+                    />
+                    <div className="upload-placeholder">
+                      <span>📷</span>
+                      <p>Klik untuk upload poster</p>
+                      <small>Format: JPG, PNG (Max 5MB)</small>
+                    </div>
+                  </label>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bank Info Section */}
+          <div className="form-section">
+            <h3>🏦 Informasi Rekening (untuk pembayaran)</h3>
+            <div className="form-grid">
+              <div className="form-group">
+                <label htmlFor="bank_name">Nama Bank</label>
+                <select
+                  id="bank_name"
+                  name="bank_name"
+                  value={formData.bank_name}
+                  onChange={handleChange}
+                >
+                  <option value="">Pilih Bank</option>
+                  <option value="BCA">BCA</option>
+                  <option value="BNI">BNI</option>
+                  <option value="BRI">BRI</option>
+                  <option value="Mandiri">Mandiri</option>
+                  <option value="CIMB Niaga">CIMB Niaga</option>
+                  <option value="Danamon">Danamon</option>
+                  <option value="Permata">Permata</option>
+                  <option value="OCBC NISP">OCBC NISP</option>
+                  <option value="Lainnya">Lainnya</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="bank_account_number">Nomor Rekening</label>
+                <input
+                  type="text"
+                  id="bank_account_number"
+                  name="bank_account_number"
+                  value={formData.bank_account_number}
+                  onChange={handleChange}
+                  placeholder="1234567890"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="bank_account_holder">Nama Pemilik Rekening</label>
+                <input
+                  type="text"
+                  id="bank_account_holder"
+                  name="bank_account_holder"
+                  value={formData.bank_account_holder}
+                  onChange={handleChange}
+                  placeholder="Sesuai buku tabungan"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Terms & Submit */}
+          <div className="form-section terms-section">
+            <div className="terms-box">
+              <h4>📌 Ketentuan Partner Affiliate</h4>
+              <ul>
+                <li>Anda akan menerima <strong>90%</strong> dari setiap penjualan</li>
+                <li>Platform mengambil <strong>10%</strong> sebagai biaya layanan</li>
+                <li>Pembayaran dilakukan setiap akhir bulan</li>
+                <li>Event akan ditinjau sebelum dipublikasikan</li>
+                <li>Konten harus original dan tidak melanggar hak cipta</li>
+              </ul>
+            </div>
+          </div>
+
+          <button type="submit" className="submit-btn" disabled={loading}>
+            {loading ? 'Mengirim...' : '🚀 Ajukan Event Saya'}
+          </button>
+        </form>
+      </div>
+
+      <style>{`
         .affiliate-register-page {
           min-height: 100vh;
           background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -605,6 +606,6 @@ export default function AffiliateRegisterForm() {
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }

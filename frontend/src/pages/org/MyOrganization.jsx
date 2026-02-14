@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import api, { uploadEventThumbnail } from "../../api";
+import { getBackendUrl } from "../../utils/url";
 
 export default function MyOrganization() {
     const [events, setEvents] = useState([]);
@@ -223,7 +224,7 @@ export default function MyOrganization() {
                             }}>
                                 {editProfile.logo_url ? (
                                     <img
-                                        src={`http://localhost:8080/${editProfile.logo_url}`}
+                                        src={getBackendUrl(editProfile.logo_url)}
                                         alt="Logo Organisasi"
                                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                     />
@@ -415,7 +416,7 @@ export default function MyOrganization() {
                                     }}>
                                         {orgProfile.logo_url ? (
                                             <img
-                                                src={`http://localhost:8080/${orgProfile.logo_url}`}
+                                                src={getBackendUrl(orgProfile.logo_url)}
                                                 alt="Logo Organisasi"
                                                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                             />

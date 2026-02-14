@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../api';
+import { getBackendUrl } from '../../utils/url';
 
 export default function AdminOfficialOrg() {
     const [org, setOrg] = useState(null);
@@ -135,7 +136,7 @@ export default function AdminOfficialOrg() {
                 <div style={{ display: "flex", alignItems: "center", gap: "20px", marginBottom: "20px", padding: "16px", background: "#f8fafc", borderRadius: "10px" }}>
                     {org.logo_url ? (
                         <img
-                            src={`http://localhost:8080/${org.logo_url}`}
+                            src={getBackendUrl(org.logo_url)}
                             alt="Logo"
                             style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "12px", border: "2px solid #e2e8f0" }}
                         />
@@ -274,7 +275,7 @@ export default function AdminOfficialOrg() {
                                 <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
                                     {event.thumbnail_url ? (
                                         <img
-                                            src={`http://localhost:8080/${event.thumbnail_url}`}
+                                            src={getBackendUrl(event.thumbnail_url)}
                                             alt="Thumbnail"
                                             style={{ width: "100px", height: "70px", objectFit: "cover", borderRadius: "8px" }}
                                         />

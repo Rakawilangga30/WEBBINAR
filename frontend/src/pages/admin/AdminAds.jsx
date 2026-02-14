@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../api';
+import { getBackendUrl } from '../../utils/url';
 
 function AdminAds() {
     const [ads, setAds] = useState([]);
@@ -218,7 +219,7 @@ function AdminAds() {
                 ) : (
                     ads.map((ad) => (
                         <div key={ad.id} className={`ad-card ${!ad.is_active ? 'inactive' : ''}`}>
-                            <img src={`http://localhost:8080/${ad.image_url}`} alt={ad.title} className="ad-image" />
+                            <img src={getBackendUrl(ad.image_url)} alt={ad.title} className="ad-image" />
                             <div className="ad-info">
                                 <h4>{ad.title}</h4>
                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>

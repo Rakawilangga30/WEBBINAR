@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../api";
+import { getBackendUrl, BACKEND_URL } from "../utils/url";
 import QuizTaker from "../components/QuizTaker";
 import CertificateViewer from "../components/CertificateViewer";
 import SecureVideoPlayer from "../components/SecureVideoPlayer";
@@ -253,7 +254,7 @@ export default function EventDetail() {
         try {
             const filename = videoUrl.split(/[/\\]/).pop();
             const res = await api.get(`/user/sessions/signed-video/${filename}`);
-            const fullUrl = `http://localhost:8080${res.data.url}`;
+            const fullUrl = `${BACKEND_URL}${res.data.url}`;
             setActiveVideoUrl(fullUrl);
         } catch (error) {
             toast.error("Gagal memuat video! Pastikan sesi valid.");
@@ -265,7 +266,7 @@ export default function EventDetail() {
         try {
             const filename = fileUrl.split(/[/\\]/).pop();
             const res = await api.get(`/user/sessions/signed-file/${filename}`);
-            const fullUrl = `http://localhost:8080${res.data.url}`;
+            const fullUrl = `${BACKEND_URL}${res.data.url}`;
             setActiveDocument({ url: fullUrl, title: fileTitle || filename });
         } catch (error) {
             toast.error("Gagal memuat file!");
@@ -439,7 +440,7 @@ export default function EventDetail() {
                         >
                             <img
                                 src={organization.logo_url
-                                    ? `http://localhost:8080/${organization.logo_url}`
+                                    ? getBackendUrl(organization.logo_url)
                                     : "https://ui-avatars.com/api/?name=" + encodeURIComponent(organization.name) + "&background=3b82f6&color=fff&size=40"
                                 }
                                 alt={organization.name}

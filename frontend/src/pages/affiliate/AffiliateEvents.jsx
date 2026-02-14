@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { getBackendUrl } from '../../utils/url';
 import toast from 'react-hot-toast';
 
 export default function AffiliateEvents() {
@@ -106,7 +107,7 @@ export default function AffiliateEvents() {
                                 {/* Thumbnail */}
                                 {event.poster_url ? (
                                     <img
-                                        src={`http://localhost:8080/${event.poster_url}`}
+                                        src={getBackendUrl(event.poster_url)}
                                         alt="Poster"
                                         style={{ width: "120px", height: "80px", objectFit: "cover", borderRadius: "8px" }}
                                     />

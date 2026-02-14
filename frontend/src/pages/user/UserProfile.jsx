@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import api from "../../api";
+import { getBackendUrl } from "../../utils/url";
 
 export default function UserProfile() {
     const [user, setUser] = useState({
@@ -17,8 +18,7 @@ export default function UserProfile() {
     const getImgUrl = (path) => {
         if (!path) return null;
         if (path.startsWith("http")) return path;
-        const cleanPath = path.replace(/^\/+/, '');
-        return `http://localhost:8080/${cleanPath}`;
+        return getBackendUrl(path);
     };
 
     useEffect(() => {

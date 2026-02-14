@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Search, Rocket, ChevronDown, LogOut, LayoutDashboard, User, LogIn, GraduationCap, Building2, ShoppingCart } from "lucide-react";
+import { getBackendUrl } from "../utils/url";
 import api from "../api";
 import "./Navbar.css"; // Import the new CSS file
 
@@ -79,8 +80,7 @@ export default function Navbar() {
 
   const getThumbnailUrl = (url) => {
     if (!url) return null;
-    let cleanUrl = url.replace(/^\/+/, '').replace(/\\/g, '/');
-    return `http://localhost:8080/${cleanUrl}`;
+    return getBackendUrl(url);
   };
 
   const getSearchTypeLabel = () => {

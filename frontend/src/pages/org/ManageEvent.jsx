@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import api, { updateEvent, updateSession, uploadEventThumbnail } from "../../api";
+import { getBackendUrl } from "../../utils/url";
 import QuizBuilder from "../../components/QuizBuilder";
 
 // ==========================================
@@ -31,7 +32,7 @@ const MaterialItem = ({ item, type, onEdit, onDelete }) => {
                 <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={(e) => { e.stopPropagation(); onEdit(item, type); }} style={{ border: "1px solid #cbd5e0", background: "white", color: "#4a5568", borderRadius: 4, padding: "4px 8px", cursor: "pointer", fontSize: "0.8em" }} title="Edit Info">✏️</button>
                     <button onClick={(e) => { e.stopPropagation(); onDelete(item, type); }} style={{ border: "1px solid #fc8181", background: "#fff5f5", color: "#c53030", borderRadius: 4, padding: "4px 8px", cursor: "pointer", fontSize: "0.8em" }} title="Hapus Materi">🗑</button>
-                    <a href={`http://localhost:8080/${url}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ textDecoration: "none", color: "white", background: btnColor, padding: "4px 12px", borderRadius: 4, fontSize: "0.8em", fontWeight: "500" }}>{btnText}</a>
+                    <a href={getBackendUrl(url)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ textDecoration: "none", color: "white", background: btnColor, padding: "4px 12px", borderRadius: 4, fontSize: "0.8em", fontWeight: "500" }}>{btnText}</a>
                 </div>
             </div>
             {isOpen && item.description && (
@@ -409,7 +410,7 @@ export default function ManageEvent() {
                 <Link to="/dashboard/org" style={{ textDecoration: "none", color: "#555" }}>⬅️ Kembali</Link>
                 <div style={{ marginTop: 20, marginBottom: 20, position: "relative", width: "100%", height: "250px", background: "#f0f0f0", borderRadius: "8px", overflow: "hidden", border: "1px dashed #ccc" }}>
                     {event.thumbnail_url ? (
-                        <img src={`http://localhost:8080/${event.thumbnail_url}`} alt="Event Cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/800x250?text=Error+Loading+Image"; }} />
+                        <img src={getBackendUrl(event.thumbnail_url)} alt="Event Cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/800x250?text=Error+Loading+Image"; }} />
                     ) : (
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#888" }}><span>Belum ada gambar sampul</span></div>
                     )}

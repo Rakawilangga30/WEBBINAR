@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../../api";
+import { getBackendUrl } from "../../utils/url";
 
 export default function AdminOrgDetail() {
     const { orgId } = useParams();
@@ -36,7 +37,7 @@ export default function AdminOrgDetail() {
     const getImgUrl = (path) => {
         if (!path) return null;
         if (path.startsWith("http")) return path;
-        return `http://localhost:8080/${path}`;
+        return getBackendUrl(path);
     };
 
     const fetchSessionMedia = async (sessionId) => {
@@ -364,7 +365,7 @@ export default function AdminOrgDetail() {
                                                                     }}>
                                                                         <span>{video.title}</span>
                                                                         <a
-                                                                            href={`http://localhost:8080/${video.video_url}`}
+                                                                            href={getBackendUrl(video.video_url)}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             style={{ color: "#3b82f6", fontSize: "0.85rem" }}
@@ -389,7 +390,7 @@ export default function AdminOrgDetail() {
                                                                     }}>
                                                                         <span>{file.title}</span>
                                                                         <a
-                                                                            href={`http://localhost:8080/${file.file_url}`}
+                                                                            href={getBackendUrl(file.file_url)}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             style={{ color: "#3b82f6", fontSize: "0.85rem" }}

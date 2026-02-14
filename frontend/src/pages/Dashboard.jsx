@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Crown, Radio, Calendar, Inbox, Image as ImageIcon, Clock, ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
 import api from "../api";
 import axios from "axios";
+import { getBackendUrl, BACKEND_URL } from "../utils/url";
 import "./Dashboard.css"; // Import the CSS file
 
 export default function Dashboard() {
@@ -23,9 +24,9 @@ export default function Dashboard() {
                 const [eventsRes, featuredRes, leftRes, rightRes, bannerRes] = await Promise.all([
                     api.get("/events"),
                     api.get("/featured-events").catch(() => ({ data: { featured: [] } })),
-                    axios.get("http://localhost:8080/api/ads?placement=SIDEBAR_LEFT").catch(() => ({ data: [] })),
-                    axios.get("http://localhost:8080/api/ads?placement=SIDEBAR_RIGHT").catch(() => ({ data: [] })),
-                    axios.get("http://localhost:8080/api/ads?placement=BANNER_SLIDER").catch(() => ({ data: [] }))
+                    api.get("/ads?placement=SIDEBAR_LEFT").catch(() => ({ data: [] })),
+                    api.get("/ads?placement=SIDEBAR_RIGHT").catch(() => ({ data: [] })),
+                    api.get("/ads?placement=BANNER_SLIDER").catch(() => ({ data: [] }))
                 ]);
 
                 setEvents(eventsRes.data.events || []);
@@ -92,17 +93,14 @@ export default function Dashboard() {
     // Helper to properly format thumbnail URLs
     const getThumbnailUrl = (url) => {
         if (!url) return null;
-        // Clean up the URL - remove any leading slashes and ensure proper format
-        let cleanUrl = url.replace(/^\/+/, '').replace(/\\/g, '/');
-        // Ensure there's a slash between base and path
-        return `http://localhost:8080/${cleanUrl}`;
+        return getBackendUrl(url);
     };
 
     // Helper to get ad image URL
     const getAdImageUrl = (url) => {
         if (!url) return null;
         if (url.startsWith("http")) return url;
-        return `http://localhost:8080/${url.replace(/^\/+/, '').replace(/\\/g, '/')}`;
+        return getBackendUrl(url);
     };
 
     const formatDate = (dateString) => {

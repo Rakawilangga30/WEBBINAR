@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../api";
+import { getBackendUrl } from "../utils/url";
 
 export default function OrganizationPublic() {
     const { id } = useParams();
@@ -40,8 +41,7 @@ export default function OrganizationPublic() {
 
     const getThumbnailUrl = (url) => {
         if (!url) return null;
-        let cleanUrl = url.replace(/^\/+/, '').replace(/\\/g, '/');
-        return `http://localhost:8080/${cleanUrl}`;
+        return getBackendUrl(url);
     };
 
     const formatPrice = (price) => {
