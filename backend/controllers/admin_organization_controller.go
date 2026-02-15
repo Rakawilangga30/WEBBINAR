@@ -196,9 +196,23 @@ func GetOrganizationApplicationByID(c *gin.Context) {
 
 	err := config.DB.Get(&application, `
 		SELECT 
-			oa.*,
-			u.name AS user_name,
-			u.email AS user_email,
+			oa.id, oa.user_id, oa.org_name, 
+			COALESCE(oa.org_description, '') AS org_description, 
+			COALESCE(oa.org_category, '') AS org_category, 
+			COALESCE(oa.org_logo_url, '') AS org_logo_url, 
+			COALESCE(oa.org_email, '') AS org_email, 
+			COALESCE(oa.org_phone, '') AS org_phone, 
+			COALESCE(oa.org_website, '') AS org_website,
+			COALESCE(oa.reason, '') AS reason, 
+			COALESCE(oa.social_media, '') AS social_media, 
+			COALESCE(oa.bank_name, '') AS bank_name, 
+			COALESCE(oa.bank_account, '') AS bank_account, 
+			COALESCE(oa.bank_account_name, '') AS bank_account_name,
+			oa.status, oa.reviewed_by, oa.reviewed_at, 
+			COALESCE(oa.review_note, '') AS review_note, 
+			oa.submitted_at,
+			COALESCE(u.name, '') AS user_name,
+			COALESCE(u.email, '') AS user_email,
 			u.profile_img AS user_profile_img
 		FROM organization_applications oa
 		LEFT JOIN users u ON oa.user_id = u.id
@@ -206,6 +220,7 @@ func GetOrganizationApplicationByID(c *gin.Context) {
 	`, id)
 
 	if err != nil {
+		fmt.Println("Error fetching application detail:", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Application not found"})
 		return
 	}

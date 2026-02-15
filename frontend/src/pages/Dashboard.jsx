@@ -117,15 +117,7 @@ export default function Dashboard() {
                 textAlign: "center",
                 color: "#64748b"
             }}>
-                <div style={{
-                    width: "40px",
-                    height: "40px",
-                    border: "3px solid #e2e8f0",
-                    borderTopColor: "#3b82f6",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                    margin: "0 auto 16px"
-                }}></div>
+                <div className="loading-spinner"></div>
                 Memuat Event...
             </div>
         );
