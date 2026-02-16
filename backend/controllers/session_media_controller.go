@@ -125,13 +125,10 @@ func UploadSessionFile(c *gin.Context) {
 		return
 	}
 
-	var maxOrder int
-	config.DB.Get(&maxOrder, `SELECT COALESCE(MAX(sort_order), 0) FROM session_files WHERE session_id = ?`, sessionID)
-
 	_, err = config.DB.Exec(`
-		INSERT INTO session_files (session_id, title, file_url, file_type, sort_order, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, sessionID, finalTitle, publicURL, ext, maxOrder+1, time.Now())
+		INSERT INTO session_files (session_id, title, file_url)
+		VALUES (?, ?, ?)
+	`, sessionID, finalTitle, publicURL)
 
 	if err != nil {
 		fmt.Printf("[UPLOAD_FILE_ERROR] DB insert: %v\n", err)
