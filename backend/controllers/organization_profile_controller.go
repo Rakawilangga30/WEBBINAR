@@ -74,7 +74,19 @@ func GetOrganizationProfile(c *gin.Context) {
 	var org models.Organization
 
 	err := config.DB.Get(&org, `
-		SELECT * FROM organizations WHERE owner_user_id = ?
+		SELECT id, owner_user_id, 
+		 COALESCE(name, '') AS name,
+		 COALESCE(description, '') AS description,
+		 COALESCE(category, '') AS category,
+		 COALESCE(logo_url, '') AS logo_url,
+		 COALESCE(email, '') AS email,
+		 COALESCE(phone, '') AS phone,
+		 COALESCE(website, '') AS website,
+		 COALESCE(social_link, '') AS social_link,
+		 COALESCE(address, '') AS address,
+		 COALESCE(is_official, 0) AS is_official,
+		 created_at
+		FROM organizations WHERE owner_user_id = ?
 	`, userID)
 
 	if err != nil {
