@@ -12,6 +12,10 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
  */
 export function getBackendUrl(path) {
     if (!path) return '';
+    // If path is already an absolute URL (e.g. Supabase public URL), return as-is
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+    }
     const cleanPath = path.replace(/^\/+/, '').replace(/\\/g, '/');
     return `${BACKEND_URL}/${cleanPath}`;
 }
