@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"BACKEND/config"
+	"BACKEND/utils"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -331,8 +331,6 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 		// ============================================
 		// TRANSFER MATERIALS - FIX: Use video_url and file_url columns
 		// ============================================
-		os.MkdirAll("uploads/videos", os.ModePerm)
-		os.MkdirAll("uploads/files", os.ModePerm)
 
 		// --- VIDEOS ---
 		var videos []struct {
@@ -360,26 +358,17 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 			}{Title: title, URL: *submission.VideoURL})
 		}
 
-		// Insert all videos to session_videos - FIX: use video_url column
+		// Insert all videos to session_videos
 		for i, video := range videos {
-			videoFilename := filepath.Base(video.URL)
-			srcPath := video.URL
-			dstPath := filepath.Join("uploads/videos", videoFilename)
-
-			// Copy file
-			if _, err := os.Stat(srcPath); err == nil {
-				copyFile(srcPath, dstPath)
-			}
-
-			// FIX: Insert dengan kolom video_url, bukan filename
+			// Use the original URL from Supabase directly
 			_, insertErr := config.DB.Exec(`
 				INSERT INTO session_videos (session_id, title, video_url, order_index)
 				VALUES (?, ?, ?, ?)
-			`, sessionID, video.Title, dstPath, i+1)
+			`, sessionID, video.Title, video.URL, i+1)
 			if insertErr != nil {
 				fmt.Printf("[APPROVE] Error inserting video %d: %v\n", i+1, insertErr)
 			} else {
-				fmt.Printf("[APPROVE] ✅ Video %d inserted: %s\n", i+1, dstPath)
+				fmt.Printf("[APPROVE] ✅ Video %d inserted: %s\n", i+1, video.URL)
 			}
 		}
 
@@ -409,26 +398,17 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 			}{Title: title, URL: *submission.FileURL})
 		}
 
-		// Insert all files to session_files - FIX: use file_url column
+		// Insert all files to session_files
 		for i, file := range files {
-			fileFilename := filepath.Base(file.URL)
-			srcPath := file.URL
-			dstPath := filepath.Join("uploads/files", fileFilename)
-
-			// Copy file
-			if _, err := os.Stat(srcPath); err == nil {
-				copyFile(srcPath, dstPath)
-			}
-
-			// FIX: Insert dengan kolom file_url, bukan filename
+			// Use the original URL from Supabase directly
 			_, insertErr := config.DB.Exec(`
 				INSERT INTO session_files (session_id, title, file_url, order_index)
 				VALUES (?, ?, ?, ?)
-			`, sessionID, file.Title, dstPath, i+1)
+			`, sessionID, file.Title, file.URL, i+1)
 			if insertErr != nil {
 				fmt.Printf("[APPROVE] Error inserting file %d: %v\n", i+1, insertErr)
 			} else {
-				fmt.Printf("[APPROVE] ✅ File %d inserted: %s\n", i+1, dstPath)
+				fmt.Printf("[APPROVE] ✅ File %d inserted: %s\n", i+1, file.URL)
 			}
 		}
 
@@ -486,15 +466,6 @@ func ReviewAffiliateSubmission(c *gin.Context) {
 
 		c.JSON(http.StatusOK, gin.H{"message": "Pengajuan ditolak"})
 	}
-}
-
-// Helper function to copy file
-func copyFile(src, dst string) error {
-	input, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, input, 0644)
 }
 
 // ========================================================
@@ -675,24 +646,24 @@ func UpdateOfficialOrganization(c *gin.Context) {
 
 // UploadOfficialOrgLogo - Upload logo for Official org
 func UploadOfficialOrgLogo(c *gin.Context) {
-	file, err := c.FormFile("logo")
+	fileHeader, err := c.FormFile("logo")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File tidak ditemukan"})
 		return
 	}
 
-	os.MkdirAll("uploads/logos", os.ModePerm)
-	filename := fmt.Sprintf("official_%d%s", time.Now().UnixNano(), filepath.Ext(file.Filename))
-	path := filepath.Join("uploads/logos", filename)
+	filename := fmt.Sprintf("official_%d%s", time.Now().UnixNano(), filepath.Ext(fileHeader.Filename))
+	storagePath := "organization/" + filename
 
-	if err := c.SaveUploadedFile(file, path); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file"})
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal upload file"})
 		return
 	}
 
-	config.DB.Exec(`UPDATE organizations SET logo_url = ? WHERE is_official = 1`, path)
+	config.DB.Exec(`UPDATE organizations SET logo_url = ? WHERE is_official = 1`, publicURL)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Logo berhasil diupload", "logo_url": path})
+	c.JSON(http.StatusOK, gin.H{"message": "Logo berhasil diupload", "logo_url": publicURL})
 }
 
 // GetOfficialOrgEvents - Get all events under Official organization
@@ -853,28 +824,28 @@ func UpdateOfficialOrgEvent(c *gin.Context) {
 func UploadOfficialOrgEventThumbnail(c *gin.Context) {
 	eventID := c.Param("eventId")
 
-	file, err := c.FormFile("thumbnail")
+	fileHeader, err := c.FormFile("thumbnail")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File thumbnail diperlukan"})
 		return
 	}
 
-	os.MkdirAll("uploads/posters", os.ModePerm)
-	filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), eventID, filepath.Ext(file.Filename))
-	uploadPath := filepath.Join("uploads/posters", filename)
+	filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), eventID, filepath.Ext(fileHeader.Filename))
+	storagePath := "events/" + filename
 
-	if err := c.SaveUploadedFile(file, uploadPath); err != nil {
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal upload thumbnail"})
 		return
 	}
 
-	_, err = config.DB.Exec(`UPDATE events SET thumbnail_url = ? WHERE id = ?`, uploadPath, eventID)
+	_, err = config.DB.Exec(`UPDATE events SET thumbnail_url = ? WHERE id = ?`, publicURL, eventID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update thumbnail"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Thumbnail berhasil diupdate", "thumbnail_url": uploadPath})
+	c.JSON(http.StatusOK, gin.H{"message": "Thumbnail berhasil diupdate", "thumbnail_url": publicURL})
 }
 
 // UpdateOfficialOrgSession - Update session title, description, price
@@ -1205,18 +1176,18 @@ func UploadOfficialOrgSessionVideo(c *gin.Context) {
 	}
 	description := c.PostForm("description")
 
-	file, err := c.FormFile("video")
+	fileHeader, err := c.FormFile("video")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File video wajib diupload"})
 		return
 	}
 
-	os.MkdirAll("uploads/videos", os.ModePerm)
-	filename := fmt.Sprintf("official_%d_%s%s", time.Now().UnixNano(), sessionID, filepath.Ext(file.Filename))
-	filePath := filepath.Join("uploads/videos", filename)
+	filename := fmt.Sprintf("official_%d_%s%s", time.Now().UnixNano(), sessionID, filepath.Ext(fileHeader.Filename))
+	storagePath := "videos/" + filename
 
-	if err := c.SaveUploadedFile(file, filePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan video"})
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal upload video"})
 		return
 	}
 
@@ -1227,7 +1198,7 @@ func UploadOfficialOrgSessionVideo(c *gin.Context) {
 	result, err := config.DB.Exec(`
 		INSERT INTO session_videos (session_id, title, description, video_url, order_index)
 		VALUES (?, ?, ?, ?, ?)
-	`, sessionID, title, description, filePath, maxOrder+1)
+	`, sessionID, title, description, publicURL, maxOrder+1)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan ke database"})
@@ -1235,7 +1206,7 @@ func UploadOfficialOrgSessionVideo(c *gin.Context) {
 	}
 
 	videoID, _ := result.LastInsertId()
-	c.JSON(http.StatusCreated, gin.H{"message": "Video berhasil diupload", "video_id": videoID, "video_url": filePath})
+	c.JSON(http.StatusCreated, gin.H{"message": "Video berhasil diupload", "video_id": videoID, "video_url": publicURL})
 }
 
 // UploadOfficialOrgSessionFile - Upload file/module to session
@@ -1248,18 +1219,18 @@ func UploadOfficialOrgSessionFile(c *gin.Context) {
 	}
 	description := c.PostForm("description")
 
-	file, err := c.FormFile("file")
+	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File wajib diupload"})
 		return
 	}
 
-	os.MkdirAll("uploads/files", os.ModePerm)
-	filename := fmt.Sprintf("official_%d_%s%s", time.Now().UnixNano(), sessionID, filepath.Ext(file.Filename))
-	filePath := filepath.Join("uploads/files", filename)
+	filename := fmt.Sprintf("official_%d_%s%s", time.Now().UnixNano(), sessionID, filepath.Ext(fileHeader.Filename))
+	storagePath := "files/" + filename
 
-	if err := c.SaveUploadedFile(file, filePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file"})
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal upload file"})
 		return
 	}
 
@@ -1270,7 +1241,7 @@ func UploadOfficialOrgSessionFile(c *gin.Context) {
 	result, err := config.DB.Exec(`
 		INSERT INTO session_files (session_id, title, description, file_url, order_index)
 		VALUES (?, ?, ?, ?, ?)
-	`, sessionID, title, description, filePath, maxOrder+1)
+	`, sessionID, title, description, publicURL, maxOrder+1)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan ke database"})
@@ -1278,7 +1249,7 @@ func UploadOfficialOrgSessionFile(c *gin.Context) {
 	}
 
 	fileID, _ := result.LastInsertId()
-	c.JSON(http.StatusCreated, gin.H{"message": "File berhasil diupload", "file_id": fileID, "file_url": filePath})
+	c.JSON(http.StatusCreated, gin.H{"message": "File berhasil diupload", "file_id": fileID, "file_url": publicURL})
 }
 
 // ========================================================

@@ -3,12 +3,13 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"BACKEND/config"
+	"BACKEND/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -92,19 +93,20 @@ func CreateAdBanner(c *gin.Context) {
 	}
 
 	// Handle image upload
-	file, err := c.FormFile("image")
+	fileHeader, err := c.FormFile("image")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Image file diperlukan"})
 		return
 	}
 
-	// Save image
-	ext := filepath.Ext(file.Filename)
+	// Upload to Supabase
+	ext := filepath.Ext(fileHeader.Filename)
 	filename := fmt.Sprintf("ad_%d_%s%s", time.Now().UnixNano(), uuid.New().String()[:8], ext)
-	savePath := filepath.Join("uploads", "ads", filename)
-	os.MkdirAll(filepath.Dir(savePath), 0755)
+	storagePath := "ads/" + filename
 
-	if err := c.SaveUploadedFile(file, savePath); err != nil {
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
+		fmt.Printf("❌ Supabase upload error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal upload gambar"})
 		return
 	}
@@ -121,7 +123,7 @@ func CreateAdBanner(c *gin.Context) {
 	result, err := config.DB.Exec(`
 		INSERT INTO ad_banners (title, image_url, target_url, placement, start_date, end_date, created_by)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, title, savePath, targetURL, placement, startDateSQL, endDateSQL, userID)
+	`, title, publicURL, targetURL, placement, startDateSQL, endDateSQL, userID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat banner: " + err.Error()})
@@ -157,15 +159,15 @@ func UpdateAdBanner(c *gin.Context) {
 	}
 
 	// Handle image update if provided
-	file, err := c.FormFile("image")
-	if err == nil && file != nil {
-		ext := filepath.Ext(file.Filename)
+	fileHeader, err := c.FormFile("image")
+	if err == nil && fileHeader != nil {
+		ext := filepath.Ext(fileHeader.Filename)
 		filename := fmt.Sprintf("ad_%d_%s%s", time.Now().UnixNano(), uuid.New().String()[:8], ext)
-		savePath := filepath.Join("uploads", "ads", filename)
-		os.MkdirAll(filepath.Dir(savePath), 0755)
+		storagePath := "ads/" + filename
 
-		if err := c.SaveUploadedFile(file, savePath); err == nil {
-			config.DB.Exec("UPDATE ad_banners SET image_url = ? WHERE id = ?", savePath, adID)
+		publicURL, uploadErr := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+		if uploadErr == nil {
+			config.DB.Exec("UPDATE ad_banners SET image_url = ? WHERE id = ?", publicURL, adID)
 		}
 	}
 
@@ -213,9 +215,9 @@ func DeleteAdBanner(c *gin.Context) {
 		return
 	}
 
-	// Remove image file
-	if imagePath != "" {
-		os.Remove(imagePath)
+	// Remove image from Supabase
+	if imagePath != "" && strings.Contains(imagePath, "supabase") {
+		utils.DeleteFromSupabase(utils.GetStoragePathFromURL(imagePath))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Banner berhasil dihapus"})

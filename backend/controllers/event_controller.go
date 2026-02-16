@@ -1,16 +1,17 @@
 package controllers
 
 import (
-	"fmt" // <-- DITAMBAHKAN: Untuk mengatasi error undefined: fmt
+	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"BACKEND/config"
 	"BACKEND/models"
+	"BACKEND/utils"
 )
 
 // Helper
@@ -70,17 +71,23 @@ func GetMyEventDetailForManage(c *gin.Context) {
 
 	var sessions []SessionWithMedia
 	err = config.DB.Select(&sessions, `SELECT id, event_id, title, description, price, COALESCE(publish_status, 'DRAFT') as publish_status FROM sessions WHERE event_id = ? ORDER BY order_index ASC, created_at ASC`, eventID)
-	if err != nil { sessions = []SessionWithMedia{} }
+	if err != nil {
+		sessions = []SessionWithMedia{}
+	}
 
 	for i := range sessions {
 		var videos []SessionVideoResponse
 		config.DB.Select(&videos, `SELECT id, title, COALESCE(description, '') as description, video_url FROM session_videos WHERE session_id = ? ORDER BY order_index ASC`, sessions[i].ID)
-		if videos == nil { videos = []SessionVideoResponse{} }
+		if videos == nil {
+			videos = []SessionVideoResponse{}
+		}
 		sessions[i].Videos = videos
 
 		var files []SessionFileResponse
 		config.DB.Select(&files, `SELECT id, title, COALESCE(description, '') as description, file_url FROM session_files WHERE session_id = ? ORDER BY order_index ASC`, sessions[i].ID)
-		if files == nil { files = []SessionFileResponse{} }
+		if files == nil {
+			files = []SessionFileResponse{}
+		}
 		sessions[i].Files = files
 	}
 
@@ -125,7 +132,9 @@ func ListMyEvents(c *gin.Context) {
 	}
 	var events []models.Event
 	config.DB.Select(&events, `SELECT id, organization_id, title, description, category, thumbnail_url, COALESCE(publish_status, 'DRAFT') as publish_status, publish_at, created_at, updated_at FROM events WHERE organization_id = ? ORDER BY created_at DESC`, orgID)
-	if events == nil { events = []models.Event{} }
+	if events == nil {
+		events = []models.Event{}
+	}
 	c.JSON(http.StatusOK, gin.H{"events": events})
 }
 
@@ -153,23 +162,30 @@ func DeleteEvent(c *gin.Context) {
 	// 2. Ambil semua Session ID di event ini
 	var sessionIDs []int64
 	err = config.DB.Select(&sessionIDs, "SELECT id FROM sessions WHERE event_id = ?", eventID)
-	
+
 	if err == nil {
-		// LOOP SETIAP SESI: Hapus isinya dulu
 		for _, sessID := range sessionIDs {
-			// A. Hapus Video (File Fisik & DB)
+			// A. Hapus Video (Supabase & DB)
 			var videoPaths []string
 			config.DB.Select(&videoPaths, "SELECT video_url FROM session_videos WHERE session_id = ?", sessID)
-			for _, path := range videoPaths { os.Remove(path) }
+			for _, path := range videoPaths {
+				if strings.Contains(path, "supabase") {
+					utils.DeleteFromSupabase(utils.GetStoragePathFromURL(path))
+				}
+			}
 			config.DB.Exec("DELETE FROM session_videos WHERE session_id = ?", sessID)
 
-			// B. Hapus Files (File Fisik & DB)
+			// B. Hapus Files (Supabase & DB)
 			var filePaths []string
 			config.DB.Select(&filePaths, "SELECT file_url FROM session_files WHERE session_id = ?", sessID)
-			for _, path := range filePaths { os.Remove(path) }
+			for _, path := range filePaths {
+				if strings.Contains(path, "supabase") {
+					utils.DeleteFromSupabase(utils.GetStoragePathFromURL(path))
+				}
+			}
 			config.DB.Exec("DELETE FROM session_files WHERE session_id = ?", sessID)
 
-			// C. Hapus Purchases (DB) - PENTING!
+			// C. Hapus Purchases (DB)
 			config.DB.Exec("DELETE FROM purchases WHERE session_id = ?", sessID)
 		}
 
@@ -181,14 +197,14 @@ func DeleteEvent(c *gin.Context) {
 		}
 	}
 
-	// 4. Hapus Thumbnail Event Fisik
-	if thumbnailURL != "" {
-		os.Remove(thumbnailURL)
+	// 4. Hapus Thumbnail Event dari Supabase
+	if thumbnailURL != "" && strings.Contains(thumbnailURL, "supabase") {
+		utils.DeleteFromSupabase(utils.GetStoragePathFromURL(thumbnailURL))
 	}
 
 	// 5. Akhirnya Hapus Event dari DB
 	_, err = config.DB.Exec("DELETE FROM events WHERE id = ? AND organization_id = ?", eventID, orgID)
-	
+
 	if err != nil {
 		fmt.Println("Error delete event:", err) // Menggunakan fmt yang sekarang sudah diimport
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus event (DB Error): " + err.Error()})
@@ -268,28 +284,25 @@ func UploadEventThumbnail(c *gin.Context) {
 	}
 
 	// Ambil File
-	file, err := c.FormFile("thumbnail")
+	fileHeader, err := c.FormFile("thumbnail")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File thumbnail wajib diupload"})
 		return
 	}
 
-	// Simpan File
-	saveDir := "uploads/events"
-	os.MkdirAll(saveDir, os.ModePerm)
-
-	ext := filepath.Ext(file.Filename)
+	ext := filepath.Ext(fileHeader.Filename)
 	filename := fmt.Sprintf("event_thumb_%s_%d%s", eventID, time.Now().Unix(), ext)
-	filePath := filepath.Join(saveDir, filename)
+	storagePath := "events/" + filename
 
-	if err := c.SaveUploadedFile(file, filePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan gambar"})
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
+		fmt.Printf("❌ Supabase upload error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal upload gambar"})
 		return
 	}
 
-	// Update DB (path separator forward slash untuk URL)
-	dbPath := "uploads/events/" + filename
-	_, err = config.DB.Exec("UPDATE events SET thumbnail_url = ? WHERE id = ?", dbPath, eventID)
+	// Update DB with Supabase URL
+	_, err = config.DB.Exec("UPDATE events SET thumbnail_url = ? WHERE id = ?", publicURL, eventID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update database"})
 		return
@@ -297,6 +310,6 @@ func UploadEventThumbnail(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Thumbnail berhasil diupload",
-		"thumbnail_url": dbPath,
+		"thumbnail_url": publicURL,
 	})
 }

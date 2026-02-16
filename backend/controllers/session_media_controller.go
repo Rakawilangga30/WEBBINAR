@@ -2,16 +2,16 @@ package controllers
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"BACKEND/config"
 	"BACKEND/models"
+	"BACKEND/utils"
 )
 
 // NOTE: Fungsi checkSessionOwnedByUser diasumsikan ada di helpers.go
@@ -34,34 +34,30 @@ func UploadSessionVideo(c *gin.Context) {
 		return
 	}
 
-	file, header, err := c.Request.FormFile("video")
+	fileHeader, err := c.FormFile("video")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Video file is required"})
 		return
 	}
-	defer file.Close()
 
 	titleInput := c.PostForm("title")
 	descriptionInput := c.PostForm("description")
 
 	finalTitle := titleInput
 	if finalTitle == "" {
-		finalTitle = header.Filename
+		finalTitle = fileHeader.Filename
 	}
 
-	ext := filepath.Ext(header.Filename)
+	ext := filepath.Ext(fileHeader.Filename)
 	uniqueName := fmt.Sprintf("session_%d_%d%s", sessionID, time.Now().Unix(), ext)
-	filePath := "uploads/videos/" + uniqueName
+	storagePath := "videos/" + uniqueName
 
-	os.MkdirAll("uploads/videos", os.ModePerm)
-
-	out, err := os.Create(filePath)
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save video file"})
+		fmt.Printf("[UPLOAD_VIDEO_ERROR] Supabase upload: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload video"})
 		return
 	}
-	defer out.Close()
-	io.Copy(out, file)
 
 	var maxOrder int
 	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM session_videos WHERE session_id = ?", sessionID)
@@ -69,7 +65,7 @@ func UploadSessionVideo(c *gin.Context) {
 	_, err = config.DB.Exec(`
 		INSERT INTO session_videos (session_id, title, description, video_url, size_bytes, order_index, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, NOW())
-	`, sessionID, finalTitle, descriptionInput, filePath, header.Size, maxOrder+1)
+	`, sessionID, finalTitle, descriptionInput, publicURL, fileHeader.Size, maxOrder+1)
 
 	if err != nil {
 		fmt.Printf("[UPLOAD_VIDEO_ERROR] Failed to insert: %v\n", err)
@@ -98,13 +94,13 @@ func UploadSessionFile(c *gin.Context) {
 		return
 	}
 
-	file, err := c.FormFile("file")
+	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
 		return
 	}
 
-	ext := filepath.Ext(file.Filename)
+	ext := filepath.Ext(fileHeader.Filename)
 	switch ext {
 	case ".pdf", ".ppt", ".pptx", ".doc", ".docx":
 	default:
@@ -117,16 +113,16 @@ func UploadSessionFile(c *gin.Context) {
 
 	finalTitle := titleInput
 	if finalTitle == "" {
-		finalTitle = file.Filename
+		finalTitle = fileHeader.Filename
 	}
 
 	filename := fmt.Sprintf("session_file_%d_%d%s", sessionID, time.Now().Unix(), ext)
-	path := "uploads/files/" + filename
+	storagePath := "files/" + filename
 
-	os.MkdirAll("uploads/files", os.ModePerm)
-
-	if err := c.SaveUploadedFile(file, path); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
+		fmt.Printf("[UPLOAD_FILE_ERROR] Supabase upload: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file"})
 		return
 	}
 
@@ -136,14 +132,14 @@ func UploadSessionFile(c *gin.Context) {
 	_, err = config.DB.Exec(`
 		INSERT INTO session_files (session_id, title, description, file_url, size_bytes, order_index, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-	`, sessionID, finalTitle, descriptionInput, path, file.Size, maxOrder+1, time.Now())
+	`, sessionID, finalTitle, descriptionInput, publicURL, fileHeader.Size, maxOrder+1, time.Now())
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file metadata"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "File uploaded successfully", "path": path})
+	c.JSON(http.StatusOK, gin.H{"message": "File uploaded successfully", "url": publicURL})
 }
 
 // =======================================
@@ -243,9 +239,10 @@ func DeleteSessionVideo(c *gin.Context) {
 		return
 	}
 
-	// 2. Hapus File Fisik
-	if videoPath != "" {
-		os.Remove(videoPath)
+	// 2. Hapus File dari Supabase
+	if videoPath != "" && strings.Contains(videoPath, "supabase") {
+		sp := utils.GetStoragePathFromURL(videoPath)
+		utils.DeleteFromSupabase(sp)
 	}
 
 	// 3. Hapus Record DB
@@ -283,9 +280,10 @@ func DeleteSessionFile(c *gin.Context) {
 		return
 	}
 
-	// 2. Hapus File Fisik
-	if filePath != "" {
-		os.Remove(filePath)
+	// 2. Hapus File dari Supabase
+	if filePath != "" && strings.Contains(filePath, "supabase") {
+		sp := utils.GetStoragePathFromURL(filePath)
+		utils.DeleteFromSupabase(sp)
 	}
 
 	// 3. Hapus Record DB

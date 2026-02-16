@@ -3,13 +3,14 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"BACKEND/config"
 	"BACKEND/models"
+	"BACKEND/utils"
 )
 
 // =======================================
@@ -282,27 +283,22 @@ func UploadOrganizationLogo(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	// Get file from form
-	file, err := c.FormFile("logo")
+	fileHeader, err := c.FormFile("logo")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Logo file is required"})
 		return
 	}
 
 	// Validate file size (max 2MB)
-	if file.Size > 2*1024*1024 {
+	if fileHeader.Size > 2*1024*1024 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File size must be less than 2MB"})
 		return
 	}
 
-	// Generate unique filename
-	ext := ".jpg"
-	if file.Filename != "" {
-		for _, e := range []string{".png", ".jpg", ".jpeg", ".gif", ".webp"} {
-			if len(file.Filename) > len(e) && file.Filename[len(file.Filename)-len(e):] == e {
-				ext = e
-				break
-			}
-		}
+	// Get extension
+	ext := filepath.Ext(fileHeader.Filename)
+	if ext == "" {
+		ext = ".jpg"
 	}
 
 	// Get org ID
@@ -313,25 +309,19 @@ func UploadOrganizationLogo(c *gin.Context) {
 		return
 	}
 
-	// Create directory if not exists
-	uploadDir := "uploads/organization"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
-		return
-	}
-
 	// Generate unique filename with timestamp
 	filename := fmt.Sprintf("org_logo_%d_%d%s", orgID, time.Now().UnixNano(), ext)
-	uploadPath := uploadDir + "/" + filename
+	storagePath := "organization/" + filename
 
-	// Save file
-	if err := c.SaveUploadedFile(file, uploadPath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save logo file: " + err.Error()})
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, fileHeader)
+	if err != nil {
+		fmt.Printf("❌ Supabase upload error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload logo"})
 		return
 	}
 
 	// Update database
-	_, err = config.DB.Exec(`UPDATE organizations SET logo_url = ? WHERE owner_user_id = ?`, uploadPath, userID)
+	_, err = config.DB.Exec(`UPDATE organizations SET logo_url = ? WHERE owner_user_id = ?`, publicURL, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update logo URL"})
 		return
@@ -339,7 +329,7 @@ func UploadOrganizationLogo(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "Logo uploaded successfully",
-		"logo_url": uploadPath,
+		"logo_url": publicURL,
 	})
 }
 
