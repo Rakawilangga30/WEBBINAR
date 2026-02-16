@@ -43,6 +43,9 @@ func ReviewOrganizationApplication(c *gin.Context) {
 		 COALESCE(org_website, '') AS org_website,
 		 COALESCE(reason, '') AS reason, 
 		 COALESCE(social_media, '') AS social_media, 
+		 COALESCE(bank_name, '') AS bank_name,
+		 COALESCE(bank_account, '') AS bank_account,
+		 COALESCE(bank_account_name, '') AS bank_account_name,
 		 status, reviewed_by, reviewed_at, 
 		 COALESCE(review_note, '') AS review_note, 
 		 submitted_at
@@ -58,6 +61,18 @@ func ReviewOrganizationApplication(c *gin.Context) {
 	// Jika APPROVED → buat ORGANIZATION & update role user
 	if req.Status == "APPROVED" {
 
+		// Jika org_email kosong, pakai email user sebagai fallback
+		orgEmail := application.OrgEmail
+		if orgEmail == "" {
+			config.DB.Get(&orgEmail, "SELECT email FROM users WHERE id = ?", application.UserID)
+		}
+
+		// Jika org_phone kosong, pakai phone user sebagai fallback
+		orgPhone := application.OrgPhone
+		if orgPhone == "" {
+			config.DB.Get(&orgPhone, "SELECT COALESCE(phone, '') FROM users WHERE id = ?", application.UserID)
+		}
+
 		// Insert ke tabel organizations
 		_, err := config.DB.Exec(`
 			INSERT INTO organizations 
@@ -69,8 +84,8 @@ func ReviewOrganizationApplication(c *gin.Context) {
 			application.OrgDescription,
 			application.OrgCategory,
 			application.OrgLogoURL,
-			application.OrgEmail,
-			application.OrgPhone,
+			orgEmail,
+			orgPhone,
 			application.OrgWebsite,
 			application.SocialMedia,
 		)
