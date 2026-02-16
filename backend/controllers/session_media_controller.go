@@ -109,7 +109,6 @@ func UploadSessionFile(c *gin.Context) {
 	}
 
 	titleInput := c.PostForm("title")
-	descriptionInput := c.PostForm("description")
 
 	finalTitle := titleInput
 	if finalTitle == "" {
@@ -127,14 +126,15 @@ func UploadSessionFile(c *gin.Context) {
 	}
 
 	var maxOrder int
-	config.DB.Get(&maxOrder, `SELECT COALESCE(MAX(order_index), 0) FROM session_files WHERE session_id = ?`, sessionID)
+	config.DB.Get(&maxOrder, `SELECT COALESCE(MAX(sort_order), 0) FROM session_files WHERE session_id = ?`, sessionID)
 
 	_, err = config.DB.Exec(`
-		INSERT INTO session_files (session_id, title, description, file_url, size_bytes, order_index, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-	`, sessionID, finalTitle, descriptionInput, publicURL, fileHeader.Size, maxOrder+1, time.Now())
+		INSERT INTO session_files (session_id, title, file_url, file_type, sort_order, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, sessionID, finalTitle, publicURL, ext, maxOrder+1, time.Now())
 
 	if err != nil {
+		fmt.Printf("[UPLOAD_FILE_ERROR] DB insert: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file metadata"})
 		return
 	}
