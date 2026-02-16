@@ -1,80 +1,93 @@
 package utils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"net/smtp"
+	"io"
+	"net/http"
 	"os"
-	"strconv"
 )
 
-// EmailConfig holds SMTP configuration
-type EmailConfig struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-	From     string
-	FromName string
+// BrevoEmailRequest represents Brevo API v3 send email request
+type BrevoEmailRequest struct {
+	Sender      BrevoContact   `json:"sender"`
+	To          []BrevoContact `json:"to"`
+	Subject     string         `json:"subject"`
+	HtmlContent string         `json:"htmlContent"`
 }
 
-// GetEmailConfig loads email configuration from environment
-func GetEmailConfig() EmailConfig {
-	port, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
-	if port == 0 {
-		port = 587
+type BrevoContact struct {
+	Name  string `json:"name,omitempty"`
+	Email string `json:"email"`
+}
+
+// SendEmail sends an email using Brevo HTTP API (v3)
+// This bypasses SMTP port restrictions on Railway
+func SendEmail(to, subject, htmlBody string) error {
+	apiKey := os.Getenv("BREVO_API_KEY")
+
+	// Fallback: use SMTP_PASS as API key if BREVO_API_KEY not set
+	if apiKey == "" {
+		apiKey = os.Getenv("SMTP_PASS")
 	}
 
+	fromEmail := os.Getenv("SMTP_FROM")
 	fromName := os.Getenv("SMTP_FROM_NAME")
 	if fromName == "" {
 		fromName = "Webbinar"
 	}
 
-	return EmailConfig{
-		Host:     os.Getenv("SMTP_HOST"),
-		Port:     port,
-		Username: os.Getenv("SMTP_USER"),
-		Password: os.Getenv("SMTP_PASS"),
-		From:     os.Getenv("SMTP_FROM"),
-		FromName: fromName,
-	}
-}
-
-// SendEmail sends an email using SMTP
-func SendEmail(to, subject, htmlBody string) error {
-	config := GetEmailConfig()
-
-	if config.Host == "" || config.Username == "" || config.Password == "" {
-		return fmt.Errorf("SMTP not configured")
+	if apiKey == "" || fromEmail == "" {
+		return fmt.Errorf("email not configured: missing BREVO_API_KEY and SMTP_FROM")
 	}
 
-	// Set up authentication
-	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
+	// Build Brevo API request
+	emailReq := BrevoEmailRequest{
+		Sender: BrevoContact{
+			Name:  fromName,
+			Email: fromEmail,
+		},
+		To: []BrevoContact{
+			{Email: to},
+		},
+		Subject:     subject,
+		HtmlContent: htmlBody,
+	}
 
-	// Format From with name: "Name <email@domain.com>"
-	fromHeader := fmt.Sprintf("%s <%s>", config.FromName, config.From)
+	jsonData, err := json.Marshal(emailReq)
+	if err != nil {
+		return fmt.Errorf("failed to marshal email request: %v", err)
+	}
 
-	// Build the email message
-	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	msg := []byte(fmt.Sprintf(
-		"From: %s\r\nTo: %s\r\nSubject: %s\r\n%s\r\n%s",
-		fromHeader,
-		to,
-		subject,
-		mime,
-		htmlBody,
-	))
+	// Call Brevo API v3
+	req, err := http.NewRequest("POST", "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
 
-	// Send the email
-	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	err := smtp.SendMail(addr, auth, config.From, []string{to}, msg)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("api-key", apiKey)
+	req.Header.Set("Accept", "application/json")
 
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("❌ Failed to send email to %s: %v\n", to, err)
 		return err
 	}
+	defer resp.Body.Close()
 
-	fmt.Printf("✅ Email sent successfully to %s\n", to)
-	return nil
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		fmt.Printf("✅ Email sent successfully to %s\n", to)
+		return nil
+	}
+
+	errMsg := fmt.Sprintf("Brevo API error (status %d): %s", resp.StatusCode, string(body))
+	fmt.Printf("❌ %s\n", errMsg)
+	return fmt.Errorf(errMsg)
 }
 
 // SendPasswordResetEmail sends a password reset email with verification code
