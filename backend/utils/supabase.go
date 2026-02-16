@@ -43,8 +43,11 @@ func UploadToSupabase(storagePath string, file multipart.File, contentType strin
 	config := GetSupabaseConfig()
 
 	if config.URL == "" || config.Key == "" {
-		return "", fmt.Errorf("supabase not configured")
+		return "", fmt.Errorf("supabase not configured: URL=%q, Key length=%d", config.URL, len(config.Key))
 	}
+
+	// Trim trailing slash from URL to avoid double slashes
+	baseURL := strings.TrimRight(config.URL, "/")
 
 	// Read file content
 	fileBytes, err := io.ReadAll(file)
@@ -54,7 +57,15 @@ func UploadToSupabase(storagePath string, file multipart.File, contentType strin
 
 	// Build the upload URL
 	// POST https://<project>.supabase.co/storage/v1/object/<bucket>/<path>
-	uploadURL := fmt.Sprintf("%s/storage/v1/object/%s/%s", config.URL, config.Bucket, storagePath)
+	uploadURL := fmt.Sprintf("%s/storage/v1/object/%s/%s", baseURL, config.Bucket, storagePath)
+
+	fmt.Printf("📤 Supabase Upload Debug:\n")
+	fmt.Printf("   URL: %s\n", uploadURL)
+	fmt.Printf("   Bucket: %s\n", config.Bucket)
+	fmt.Printf("   Path: %s\n", storagePath)
+	fmt.Printf("   Content-Type: %s\n", contentType)
+	fmt.Printf("   File size: %d bytes\n", len(fileBytes))
+	fmt.Printf("   Key prefix: %s...\n", config.Key[:20])
 
 	req, err := http.NewRequest("POST", uploadURL, bytes.NewReader(fileBytes))
 	if err != nil {
@@ -76,7 +87,7 @@ func UploadToSupabase(storagePath string, file multipart.File, contentType strin
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		// Build public URL
-		publicURL := fmt.Sprintf("%s/storage/v1/object/public/%s/%s", config.URL, config.Bucket, storagePath)
+		publicURL := fmt.Sprintf("%s/storage/v1/object/public/%s/%s", baseURL, config.Bucket, storagePath)
 		fmt.Printf("✅ File uploaded to Supabase: %s\n", publicURL)
 		return publicURL, nil
 	}
