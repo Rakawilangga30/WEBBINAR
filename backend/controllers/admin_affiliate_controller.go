@@ -1191,14 +1191,10 @@ func UploadOfficialOrgSessionVideo(c *gin.Context) {
 		return
 	}
 
-	// Get max order index
-	var maxOrder int
-	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM session_videos WHERE session_id = ?", sessionID)
-
 	result, err := config.DB.Exec(`
-		INSERT INTO session_videos (session_id, title, description, video_url, order_index)
-		VALUES (?, ?, ?, ?, ?)
-	`, sessionID, title, description, publicURL, maxOrder+1)
+		INSERT INTO session_videos (session_id, title, description, video_url)
+		VALUES (?, ?, ?, ?)
+	`, sessionID, title, description, publicURL)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan ke database"})
@@ -1217,7 +1213,6 @@ func UploadOfficialOrgSessionFile(c *gin.Context) {
 	if title == "" {
 		title = "Modul Materi"
 	}
-	description := c.PostForm("description")
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -1234,14 +1229,10 @@ func UploadOfficialOrgSessionFile(c *gin.Context) {
 		return
 	}
 
-	// Get max order index
-	var maxOrder int
-	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM session_files WHERE session_id = ?", sessionID)
-
 	result, err := config.DB.Exec(`
-		INSERT INTO session_files (session_id, title, description, file_url, order_index)
-		VALUES (?, ?, ?, ?, ?)
-	`, sessionID, title, description, publicURL, maxOrder+1)
+		INSERT INTO session_files (session_id, title, file_url)
+		VALUES (?, ?, ?)
+	`, sessionID, title, publicURL)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan ke database"})

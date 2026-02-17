@@ -59,13 +59,10 @@ func UploadSessionVideo(c *gin.Context) {
 		return
 	}
 
-	var maxOrder int
-	config.DB.Get(&maxOrder, "SELECT COALESCE(MAX(order_index), 0) FROM session_videos WHERE session_id = ?", sessionID)
-
 	_, err = config.DB.Exec(`
-		INSERT INTO session_videos (session_id, title, description, video_url, size_bytes, order_index, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, NOW())
-	`, sessionID, finalTitle, descriptionInput, publicURL, fileHeader.Size, maxOrder+1)
+		INSERT INTO session_videos (session_id, title, description, video_url)
+		VALUES (?, ?, ?, ?)
+	`, sessionID, finalTitle, descriptionInput, publicURL)
 
 	if err != nil {
 		fmt.Printf("[UPLOAD_VIDEO_ERROR] Failed to insert: %v\n", err)
