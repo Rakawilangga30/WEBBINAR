@@ -302,12 +302,14 @@ func GetSessionMedia(c *gin.Context) {
 		return
 	}
 	var videos []models.SessionVideo
-	config.DB.Select(&videos, `SELECT id, session_id, title, video_url FROM session_videos WHERE session_id = ? ORDER BY id ASC`, sessionID)
+	// Added description
+	config.DB.Select(&videos, `SELECT id, session_id, title, COALESCE(description, '') as description, video_url FROM session_videos WHERE session_id = ? ORDER BY id ASC`, sessionID)
 	if videos == nil {
 		videos = []models.SessionVideo{}
 	}
 	var files []models.SessionFile
-	config.DB.Select(&files, `SELECT id, session_id, title, file_url FROM session_files WHERE session_id = ? ORDER BY id ASC`, sessionID)
+	// Added description
+	config.DB.Select(&files, `SELECT id, session_id, title, COALESCE(description, '') as description, file_url FROM session_files WHERE session_id = ? ORDER BY id ASC`, sessionID)
 	if files == nil {
 		files = []models.SessionFile{}
 	}
@@ -332,12 +334,14 @@ func GetUserSessionMedia(c *gin.Context) {
 		return
 	}
 	var videos []models.SessionVideo
-	config.DB.Select(&videos, `SELECT id, session_id, title, video_url FROM session_videos WHERE session_id = ? ORDER BY id ASC`, sessionID)
+	// Added description
+	config.DB.Select(&videos, `SELECT id, session_id, title, COALESCE(description, '') as description, video_url FROM session_videos WHERE session_id = ? ORDER BY id ASC`, sessionID)
 	if videos == nil {
 		videos = []models.SessionVideo{}
 	}
 	var files []models.SessionFile
-	config.DB.Select(&files, `SELECT id, session_id, title, file_url FROM session_files WHERE session_id = ? ORDER BY id ASC`, sessionID)
+	// Added description
+	config.DB.Select(&files, `SELECT id, session_id, title, COALESCE(description, '') as description, file_url FROM session_files WHERE session_id = ? ORDER BY id ASC`, sessionID)
 	if files == nil {
 		files = []models.SessionFile{}
 	}
