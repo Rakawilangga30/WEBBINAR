@@ -46,8 +46,8 @@ func StreamSessionVideo(c *gin.Context) {
 	// 3. Cek Database (Pakai LIKE agar lebih aman)
 	var sessionID int64
 	// Mencari video yang URL-nya MENGANDUNG nama file ini
-	err := config.DB.Get(&sessionID, 
-		"SELECT session_id FROM session_videos WHERE video_url LIKE ?", 
+	err := config.DB.Get(&sessionID,
+		"SELECT session_id FROM session_videos WHERE video_url LIKE ?",
 		"%"+filename,
 	)
 	if err != nil {
@@ -71,7 +71,7 @@ func StreamSessionVideo(c *gin.Context) {
 	// 5. Cek Fisik File
 	fullPath := filepath.Join("uploads/videos", filename)
 	fmt.Println("Mencari file fisik di:", fullPath)
-	
+
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		fmt.Println("❌ Error: File fisik tidak ditemukan di server!")
 		// Coba cari di folder files barangkali salah upload
@@ -109,8 +109,8 @@ func StreamSessionFile(c *gin.Context) {
 	}
 
 	var sessionID int64
-	err := config.DB.Get(&sessionID, 
-		"SELECT session_id FROM session_files WHERE file_url LIKE ?", 
+	err := config.DB.Get(&sessionID,
+		"SELECT session_id FROM session_files WHERE file_url LIKE ?",
 		"%"+filename,
 	)
 	if err != nil {

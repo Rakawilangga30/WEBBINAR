@@ -254,7 +254,7 @@ export default function EventDetail() {
         try {
             const filename = videoUrl.split(/[/\\]/).pop();
             const res = await api.get(`/user/sessions/signed-video/${filename}`);
-            const fullUrl = `${BACKEND_URL}${res.data.url}`;
+            const fullUrl = getBackendUrl(res.data.url);
             setActiveVideoUrl(fullUrl);
         } catch (error) {
             toast.error("Gagal memuat video! Pastikan sesi valid.");
@@ -266,7 +266,7 @@ export default function EventDetail() {
         try {
             const filename = fileUrl.split(/[/\\]/).pop();
             const res = await api.get(`/user/sessions/signed-file/${filename}`);
-            const fullUrl = `${BACKEND_URL}${res.data.url}`;
+            const fullUrl = getBackendUrl(res.data.url);
             setActiveDocument({ url: fullUrl, title: fileTitle || filename });
         } catch (error) {
             toast.error("Gagal memuat file!");

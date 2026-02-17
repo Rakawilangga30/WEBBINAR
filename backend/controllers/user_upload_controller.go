@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"BACKEND/config"
+	"BACKEND/utils"
 )
-
 
 // =======================================
 // USER: UPLOAD PROFILE IMAGE
@@ -34,20 +34,20 @@ func UploadProfileImage(c *gin.Context) {
 
 	// Nama file unik
 	filename := fmt.Sprintf("user_%d_%d%s", userID, time.Now().Unix(), ext)
+	storagePath := "profile/" + filename
 
-	// Path tujuan (folder relatif dari root project backend)
-	uploadPath := "uploads/profile/" + filename
-
-	// Simpan file ke disk
-	if err := c.SaveUploadedFile(file, uploadPath); err != nil {
+	// Upload to Supabase
+	publicURL, err := utils.UploadFileHeaderToSupabase(storagePath, file)
+	if err != nil {
+		fmt.Printf("❌ Supabase upload error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload image"})
 		return
 	}
 
-	// Simpan path ke database
+	// Simpan URL ke database
 	_, err = config.DB.Exec(`
 		UPDATE users SET profile_img = ? WHERE id = ?
-	`, uploadPath, userID)
+	`, publicURL, userID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image URL"})
@@ -56,6 +56,6 @@ func UploadProfileImage(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Profile image uploaded successfully",
-		"url":     uploadPath,
+		"url":     publicURL,
 	})
 }
