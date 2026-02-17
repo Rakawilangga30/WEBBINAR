@@ -562,14 +562,17 @@ export default function EventDetail() {
             {/* Main Content Grid */}
             <div style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 400px",
+                gridTemplateColumns: "minmax(0, 1fr) 400px",
                 gap: "32px",
-                alignItems: "start"
+                alignItems: "start",
+                width: "100%",
+                maxWidth: "1280px",
+                margin: "0 auto"
             }}>
                 {/* Left Column: Learning Area & Sessions */}
-                <div>
+                <div style={{ width: "100%", overflow: "hidden" }}>
                     {/* Learning Area */}
-                    <div id="learning-area" style={{ marginBottom: "32px" }}>
+                    <div id="learning-area" style={{ marginBottom: "32px", width: "100%" }}>
                         <h3 style={{ margin: "0 0 16px 0", fontSize: "1.25rem", color: "#1e293b" }}>
                             📺 Area Belajar
                         </h3>
@@ -578,12 +581,14 @@ export default function EventDetail() {
                             border: "1px solid #e2e8f0",
                             borderRadius: "16px",
                             padding: "24px",
+                            width: "100%",
                             height: "600px",
                             minHeight: "600px",
                             overflowY: "auto",
                             display: "flex",
                             flexDirection: "column",
-                            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)"
+                            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
+                            boxSizing: "border-box"
                         }}>
                             {!selectedSessionMedia ? (
                                 <div style={{
