@@ -578,7 +578,8 @@ export default function EventDetail() {
                             border: "1px solid #e2e8f0",
                             borderRadius: "16px",
                             padding: "24px",
-                            minHeight: "500px",
+                            height: "600px",
+                            overflowY: "auto",
                             boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)"
                         }}>
                             {!selectedSessionMedia ? (
