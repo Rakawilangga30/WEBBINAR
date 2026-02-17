@@ -581,7 +581,7 @@ export default function EventDetail() {
                             border: "1px solid #e2e8f0",
                             borderRadius: "16px",
                             padding: "24px",
-                            width: "100%",
+                            width: "600px",
                             height: "600px",
                             minHeight: "600px",
                             overflowY: "auto",
