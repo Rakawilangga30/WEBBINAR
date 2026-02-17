@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api";
+import CertificateViewer from "../../components/CertificateViewer";
 
 export default function MyCertificates() {
     const [certificates, setCertificates] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const [selectedEventId, setSelectedEventId] = useState(null);
 
     useEffect(() => {
         fetchCertificates();
@@ -40,6 +43,13 @@ export default function MyCertificates() {
 
     return (
         <div>
+            {selectedEventId && (
+                <CertificateViewer
+                    eventId={selectedEventId}
+                    onClose={() => setSelectedEventId(null)}
+                />
+            )}
+
             <div style={{ marginBottom: "24px" }}>
                 <h2 style={{ margin: "0 0 8px 0", color: "#1e293b", fontSize: "1.5rem" }}>
                     🎓 Sertifikat Saya
@@ -136,19 +146,24 @@ export default function MyCertificates() {
                                         </div>
                                     </div>
                                 </div>
-                                <Link to={`/event/${cert.event_id}`} style={{
-                                    display: "block",
-                                    textAlign: "center",
-                                    padding: "10px",
-                                    background: "linear-gradient(135deg, #10b981, #059669)",
-                                    color: "white",
-                                    borderRadius: "8px",
-                                    textDecoration: "none",
-                                    fontWeight: "600",
-                                    fontSize: "0.9rem"
-                                }}>
+                                <button
+                                    onClick={() => setSelectedEventId(cert.event_id)}
+                                    style={{
+                                        display: "block",
+                                        width: "100%",
+                                        textAlign: "center",
+                                        padding: "10px",
+                                        background: "linear-gradient(135deg, #10b981, #059669)",
+                                        color: "white",
+                                        borderRadius: "8px",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        fontWeight: "600",
+                                        fontSize: "0.9rem"
+                                    }}
+                                >
                                     📜 Lihat Sertifikat
-                                </Link>
+                                </button>
                             </div>
                         </div>
                     ))}
