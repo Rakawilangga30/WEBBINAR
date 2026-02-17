@@ -16,7 +16,7 @@ export default function QuizBuilder({ sessionId, onClose, onSave, apiBase = '/or
 
     const fetchQuiz = async () => {
         try {
-            const res = await api.get(`${apiBase} /sessions/${sessionId}/quiz`);
+            const res = await api.get(`${apiBase}/sessions/${sessionId}/quiz`);
             if (res.data.quiz) {
                 setQuiz(res.data.quiz);
                 setTitle(res.data.quiz.title || '');
