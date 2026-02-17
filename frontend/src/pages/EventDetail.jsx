@@ -579,7 +579,10 @@ export default function EventDetail() {
                             borderRadius: "16px",
                             padding: "24px",
                             height: "600px",
+                            minHeight: "600px",
                             overflowY: "auto",
+                            display: "flex",
+                            flexDirection: "column",
                             boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)"
                         }}>
                             {!selectedSessionMedia ? (
@@ -590,6 +593,8 @@ export default function EventDetail() {
                                     display: "flex",
                                     flexDirection: "column",
                                     alignItems: "center",
+                                    justifyContent: "center",
+                                    height: "100%",
                                     gap: "16px"
                                 }}>
                                     <div style={{
@@ -634,7 +639,7 @@ export default function EventDetail() {
                                                         {expandedMediaId === vid.id && (
                                                             <div style={{ padding: "16px", background: "white", borderTop: "1px solid #e2e8f0" }}>
                                                                 <p style={{ fontSize: "0.9rem", color: "#64748b", marginBottom: "12px" }}>
-                                                                    {vid.description}
+                                                                    {vid.description || "Tidak ada deskripsi untuk video ini."}
                                                                 </p>
                                                                 <button
                                                                     onClick={() => handlePlayVideo(vid.video_url)}
