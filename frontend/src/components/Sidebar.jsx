@@ -204,7 +204,6 @@ export default function Sidebar() {
         {roles.includes("ADMIN") && (
           <>
             <SectionTitle>Admin Area</SectionTitle>
-            <MenuItem to="/dashboard/admin/official-org" label="Official Org" icon={Building} />
             <MenuItem to="/dashboard/admin/organizations" label="Kelola Organisasi" icon={Building} />
             <MenuItem to="/dashboard/admin/approvals" label="Persetujuan Org" icon={CheckSquare} />
             <MenuItem to="/dashboard/admin/withdrawals" label="Kelola Penarikan" icon={Wallet} />
