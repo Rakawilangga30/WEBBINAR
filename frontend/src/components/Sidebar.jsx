@@ -196,9 +196,11 @@ export default function Sidebar() {
             <MenuItem to="/dashboard/org/events" label="Manajemen Event" icon={FileText} />
             <MenuItem to="/dashboard/org/affiliate-requests" label="Kelola Affiliate" icon={UserCheck} />
             <MenuItem to="/dashboard/org/affiliate-stats" label="Statistik Affiliate" icon={BarChart2} />
-            <MenuItem to="/dashboard/org/withdraw" label="Tarik Dana" icon={DollarSign} />
+            <MenuItem to="/dashboard/org/affiliate-withdrawals" label="Konfirmasi Payout Affiliate" icon={CheckSquare} />
+            <MenuItem to="/dashboard/org/withdraw" label="Tarik Dana (Payout)" icon={DollarSign} />
           </>
         )}
+
 
         {/* ADMIN Menu */}
         {roles.includes("ADMIN") && (
