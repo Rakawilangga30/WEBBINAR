@@ -2,20 +2,23 @@ package config
 
 import (
 	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
 func SetupCORS(r *gin.Engine) {
 	r.Use(func(c *gin.Context) {
-		// Izinkan akses dari semua origin
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+		// Reflect origin dari request (diperlukan agar Allow-Credentials: true bisa jalan)
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
-		// PENTING: Handle request OPTIONS (Preflight)
-		// Browser akan mengirim request OPTIONS dulu sebelum POST/PUT
-		// Jika tidak di-handle, browser akan memblokir request aslinya.
+		// Handle preflight OPTIONS request
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
