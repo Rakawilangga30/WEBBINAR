@@ -7,6 +7,11 @@ function OrgAffiliateWithdrawals() {
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(null);
 
+    // Modal state
+    const [confirmModal, setConfirmModal] = useState(null); // { id, userName, amount }
+    const [rejectModal, setRejectModal] = useState(null);   // { id, userName }
+    const [rejectReason, setRejectReason] = useState('');
+
     useEffect(() => {
         fetchRequests();
     }, []);
@@ -23,10 +28,10 @@ function OrgAffiliateWithdrawals() {
         }
     };
 
-    const handleConfirm = async (id, userName, amount) => {
-        if (!window.confirm(`Konfirmasi payout Rp ${amount.toLocaleString('id-ID')} untuk ${userName}? Dana akan diteruskan ke admin untuk diproses.`)) return;
-
+    const handleConfirm = async () => {
+        const { id, userName } = confirmModal;
         setProcessing(id);
+        setConfirmModal(null);
         try {
             await api.put(`/organization/affiliate-withdrawals/${id}/confirm`);
             toast.success(`✅ Payout ${userName} berhasil dikonfirmasi!`);
@@ -38,18 +43,18 @@ function OrgAffiliateWithdrawals() {
         }
     };
 
-    const handleReject = async (id, userName) => {
-        const reason = window.prompt(`Alasan penolakan payout ${userName}:`);
-        if (reason === null) return; // user cancel
-        if (!reason.trim()) {
+    const handleReject = async () => {
+        if (!rejectReason.trim()) {
             toast.error('Berikan alasan penolakan');
             return;
         }
-
+        const { id, userName } = rejectModal;
         setProcessing(id);
+        setRejectModal(null);
         try {
-            await api.put(`/organization/affiliate-withdrawals/${id}/reject`, { reason });
-            toast.success('Payout ditolak');
+            await api.put(`/organization/affiliate-withdrawals/${id}/reject`, { reason: rejectReason });
+            toast.success(`Payout ${userName} ditolak`);
+            setRejectReason('');
             fetchRequests();
         } catch (err) {
             toast.error(err.response?.data?.error || 'Gagal menolak');
@@ -94,8 +99,8 @@ function OrgAffiliateWithdrawals() {
                 background: "#fffbeb", border: "1px solid #fbbf24", borderRadius: "10px",
                 padding: "14px 18px", marginBottom: "20px", fontSize: "0.85rem", color: "#92400e"
             }}>
-                <strong>📌 Cara Kerja:</strong> Affiliate punya partnership aktif di event Anda bisa mengajukan payout.
-                Anda perlu <strong>mengkonfirmasi</strong> bahwa mereka memang terdaftar sebelum admin memprosesnya ke sistem payout.
+                <strong>📌 Cara Kerja:</strong> Affiliate yang punya partnership aktif di event Anda bisa mengajukan payout.
+                Anda perlu <strong>mengkonfirmasi</strong> bahwa mereka memang terdaftar sebelum admin memprosesnya.
             </div>
 
             {/* Stats */}
@@ -129,9 +134,9 @@ function OrgAffiliateWithdrawals() {
                             background: "white", borderRadius: "12px", padding: "20px",
                             border: "1px solid #e2e8f0",
                             borderLeft: `4px solid ${req.payout_status === 'COMPLETED' ? '#22c55e' :
-                                    req.payout_status === 'PROCESSING' ? '#3b82f6' :
-                                        req.org_confirmed ? '#f59e0b' :
-                                            req.status === 'REJECTED' ? '#ef4444' : '#f97316'
+                                req.payout_status === 'PROCESSING' ? '#3b82f6' :
+                                    req.org_confirmed ? '#f59e0b' :
+                                        req.status === 'REJECTED' ? '#ef4444' : '#f97316'
                                 }`
                         }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
@@ -171,7 +176,6 @@ function OrgAffiliateWithdrawals() {
                                 </div>
                             </div>
 
-                            {/* Confirmed info */}
                             {req.org_confirmed && req.status !== 'REJECTED' && (
                                 <div style={{
                                     padding: "8px 14px", background: "#f0fdf4",
@@ -182,11 +186,11 @@ function OrgAffiliateWithdrawals() {
                                 </div>
                             )}
 
-                            {/* Action buttons — only if pending and not yet confirmed */}
+                            {/* Action buttons */}
                             {!req.org_confirmed && req.status === 'PENDING' && (
                                 <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
                                     <button
-                                        onClick={() => handleConfirm(req.id, req.user_name, req.amount)}
+                                        onClick={() => setConfirmModal({ id: req.id, userName: req.user_name, amount: req.amount })}
                                         disabled={processing === req.id}
                                         style={{
                                             flex: 1, padding: "10px 16px",
@@ -199,7 +203,7 @@ function OrgAffiliateWithdrawals() {
                                         {processing === req.id ? '...' : '✅ Konfirmasi Payout'}
                                     </button>
                                     <button
-                                        onClick={() => handleReject(req.id, req.user_name)}
+                                        onClick={() => { setRejectModal({ id: req.id, userName: req.user_name }); setRejectReason(''); }}
                                         disabled={processing === req.id}
                                         style={{
                                             flex: 1, padding: "10px 16px",
@@ -216,6 +220,107 @@ function OrgAffiliateWithdrawals() {
                             )}
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* ===== MODAL KONFIRMASI ===== */}
+            {confirmModal && (
+                <div style={{
+                    position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+                    display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px"
+                }}>
+                    <div style={{
+                        background: "white", borderRadius: "16px", padding: "28px",
+                        maxWidth: "420px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.15)"
+                    }}>
+                        <div style={{ fontSize: "2.5rem", textAlign: "center", marginBottom: "12px" }}>✅</div>
+                        <h3 style={{ margin: "0 0 8px 0", color: "#1e293b", textAlign: "center" }}>Konfirmasi Payout</h3>
+                        <p style={{ color: "#64748b", textAlign: "center", margin: "0 0 20px 0", lineHeight: 1.6 }}>
+                            Konfirmasi payout sebesar <strong style={{ color: "#16a34a" }}>Rp {confirmModal.amount?.toLocaleString('id-ID')}</strong> untuk <strong>{confirmModal.userName}</strong>?
+                            <br />Dana akan diteruskan ke admin untuk diproses.
+                        </p>
+                        <div style={{ display: "flex", gap: "12px" }}>
+                            <button
+                                onClick={() => setConfirmModal(null)}
+                                style={{
+                                    flex: 1, padding: "11px", borderRadius: "8px",
+                                    border: "1px solid #e2e8f0", background: "white",
+                                    color: "#64748b", fontWeight: "500", cursor: "pointer"
+                                }}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleConfirm}
+                                style={{
+                                    flex: 1, padding: "11px", borderRadius: "8px", border: "none",
+                                    background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                                    color: "white", fontWeight: "700", cursor: "pointer"
+                                }}
+                            >
+                                ✅ Ya, Konfirmasi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== MODAL TOLAK ===== */}
+            {rejectModal && (
+                <div style={{
+                    position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+                    display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px"
+                }}>
+                    <div style={{
+                        background: "white", borderRadius: "16px", padding: "28px",
+                        maxWidth: "420px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.15)"
+                    }}>
+                        <div style={{ fontSize: "2.5rem", textAlign: "center", marginBottom: "12px" }}>❌</div>
+                        <h3 style={{ margin: "0 0 8px 0", color: "#1e293b", textAlign: "center" }}>Tolak Payout</h3>
+                        <p style={{ color: "#64748b", textAlign: "center", margin: "0 0 16px 0" }}>
+                            Tolak payout untuk <strong>{rejectModal.userName}</strong>?
+                        </p>
+                        <div style={{ marginBottom: "20px" }}>
+                            <label style={{ display: "block", fontSize: "14px", color: "#1e293b", marginBottom: "8px", fontWeight: "500" }}>
+                                Alasan Penolakan <span style={{ color: "#ef4444" }}>*</span>
+                            </label>
+                            <textarea
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                placeholder="Contoh: Affiliate tidak memenuhi syarat minimum..."
+                                rows={3}
+                                style={{
+                                    width: "100%", padding: "12px", borderRadius: "8px",
+                                    border: "1px solid #e2e8f0", fontSize: "14px", resize: "vertical",
+                                    boxSizing: "border-box", outline: "none", color: "#1e293b"
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = "#3b82f6"}
+                                onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                            />
+                        </div>
+                        <div style={{ display: "flex", gap: "12px" }}>
+                            <button
+                                onClick={() => { setRejectModal(null); setRejectReason(''); }}
+                                style={{
+                                    flex: 1, padding: "11px", borderRadius: "8px",
+                                    border: "1px solid #e2e8f0", background: "white",
+                                    color: "#64748b", fontWeight: "500", cursor: "pointer"
+                                }}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleReject}
+                                style={{
+                                    flex: 1, padding: "11px", borderRadius: "8px", border: "none",
+                                    background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                                    color: "white", fontWeight: "700", cursor: "pointer"
+                                }}
+                            >
+                                ❌ Ya, Tolak
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
