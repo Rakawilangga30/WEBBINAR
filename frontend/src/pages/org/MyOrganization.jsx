@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import api, { uploadEventThumbnail } from "../../api";
 import { getBackendUrl } from "../../utils/url";
+import OrgWelcomeTour from "../../components/OrgWelcomeTour";
+
 
 export default function MyOrganization() {
     const [events, setEvents] = useState([]);
@@ -137,6 +139,7 @@ export default function MyOrganization() {
 
     return (
         <div>
+            <OrgWelcomeTour />
             {/* Header */}
             <div style={{
                 display: "flex",

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import toast from 'react-hot-toast';
+import AffiliateWelcomeTour from '../../components/AffiliateWelcomeTour';
 
 export default function AffiliateDashboard() {
     const navigate = useNavigate();
@@ -72,6 +73,7 @@ export default function AffiliateDashboard() {
 
     return (
         <div>
+            <AffiliateWelcomeTour />
             {/* Header */}
             <div style={{ marginBottom: "32px" }}>
                 <h1 style={{ margin: "0 0 8px 0", color: "#1e293b", fontSize: "1.75rem" }}>
