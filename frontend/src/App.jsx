@@ -42,6 +42,7 @@ import OrgWithdrawal from "./pages/org/OrgWithdrawal";
 import OrgAffiliateRequests from "./pages/org/OrgAffiliateRequests";
 import OrgAffiliateStats from "./pages/org/OrgAffiliateStats";
 import OrgWithdraw from "./pages/org/OrgWithdraw";
+import OrgAffiliateWithdrawals from "./pages/org/OrgAffiliateWithdrawals";
 
 // PROTECTED PAGES - Admin
 import UserList from "./pages/admin/UserList";
@@ -101,6 +102,7 @@ function App() {
           <Route path="org/create-event" element={<CreateEvent />} />
           <Route path="org/event/:eventID/manage" element={<ManageEvent />} />
           <Route path="org/withdraw" element={<OrgWithdraw />} />
+          <Route path="org/affiliate-withdrawals" element={<OrgAffiliateWithdrawals />} />
           <Route path="org/affiliate-requests" element={<OrgAffiliateRequests />} />
           <Route path="org/affiliate-stats" element={<OrgAffiliateStats />} />
 

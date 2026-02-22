@@ -416,6 +416,12 @@ CREATE TABLE `withdrawal_requests` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `processed_at` datetime DEFAULT NULL,
   `processed_by` bigint DEFAULT NULL,
+  `payout_status` enum('PENDING_PAYOUT','PROCESSING','COMPLETED','FAILED') DEFAULT 'PENDING_PAYOUT',
+  `org_confirmed` tinyint(1) DEFAULT '0',
+  `org_confirmed_by` bigint DEFAULT NULL,
+  `org_confirmed_at` datetime DEFAULT NULL,
+  `payout_ref` varchar(100) DEFAULT NULL,
+  `payout_processed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 );
 

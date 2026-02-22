@@ -195,6 +195,11 @@ func RegisterRoutes(r *gin.Engine) {
 		org.GET("/withdrawals", controllers.GetOrgWithdrawalHistory)
 		org.POST("/withdrawal-request", controllers.RequestOrgWithdrawal)
 
+		// Affiliate Payout Confirmation (NEW)
+		org.GET("/affiliate-withdrawals", controllers.GetAffiliateWithdrawalsForOrg)
+		org.PUT("/affiliate-withdrawals/:id/confirm", controllers.ConfirmAffiliateWithdrawal)
+		org.PUT("/affiliate-withdrawals/:id/reject", controllers.RejectAffiliateWithdrawal)
+
 		// Affiliate Management (New Flow)
 		org.GET("/affiliate-requests", controllers.GetAffiliateRequests)
 		org.PUT("/affiliate-requests/:id/approve", controllers.ApproveAffiliateRequest)

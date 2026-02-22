@@ -530,8 +530,13 @@ export default function MyOrganization() {
                 </Link>
                 <Link to="/dashboard/org/withdraw" style={quickActionStyle}>
                     <div style={{ fontSize: "2rem", marginBottom: "8px" }}>💸</div>
-                    <h4 style={{ margin: "0 0 4px 0", color: "#1e293b", fontSize: "1rem" }}>Tarik Dana</h4>
+                    <h4 style={{ margin: "0 0 4px 0", color: "#1e293b", fontSize: "1rem" }}>Tarik Dana (Payout)</h4>
                     <p style={{ margin: 0, color: "#64748b", fontSize: "0.8rem" }}>Cairkan pendapatan Anda</p>
+                </Link>
+                <Link to="/dashboard/org/affiliate-withdrawals" style={quickActionStyle}>
+                    <div style={{ fontSize: "2rem", marginBottom: "8px" }}>✅</div>
+                    <h4 style={{ margin: "0 0 4px 0", color: "#1e293b", fontSize: "1rem" }}>Konfirmasi Payout Affiliate</h4>
+                    <p style={{ margin: 0, color: "#64748b", fontSize: "0.8rem" }}>Setujui payout affiliate Anda</p>
                 </Link>
                 <Link to="/dashboard/notifications" style={quickActionStyle}>
                     <div style={{ fontSize: "2rem", marginBottom: "8px" }}>🔔</div>
