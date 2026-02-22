@@ -9,6 +9,7 @@ export default function AffiliateDashboard() {
     const [balance, setBalance] = useState(null);
     const [partnerships, setPartnerships] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showTour, setShowTour] = useState(false);
 
     // Check if user has AFFILIATE role
     useEffect(() => {
@@ -73,15 +74,31 @@ export default function AffiliateDashboard() {
 
     return (
         <div>
-            <AffiliateWelcomeTour />
+            <AffiliateWelcomeTour open={showTour} onClose={() => setShowTour(false)} />
             {/* Header */}
-            <div style={{ marginBottom: "32px" }}>
-                <h1 style={{ margin: "0 0 8px 0", color: "#1e293b", fontSize: "1.75rem" }}>
-                    🤝 Dashboard Affiliate
-                </h1>
-                <p style={{ margin: 0, color: "#64748b" }}>
-                    Pantau pendapatan dari kode promo Anda
-                </p>
+            <div style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+                <div>
+                    <h1 style={{ margin: "0 0 8px 0", color: "#1e293b", fontSize: "1.75rem" }}>
+                        🤝 Dashboard Affiliate
+                    </h1>
+                    <p style={{ margin: 0, color: "#64748b" }}>
+                        Pantau pendapatan dari kode promo Anda
+                    </p>
+                </div>
+                <button
+                    onClick={() => setShowTour(true)}
+                    style={{
+                        background: "transparent", color: "#64748b",
+                        padding: "10px 18px", border: "1px solid #e2e8f0",
+                        borderRadius: "8px", cursor: "pointer",
+                        fontWeight: "500", fontSize: "0.9rem",
+                        display: "flex", alignItems: "center", gap: "6px"
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#8b5cf6'; e.currentTarget.style.color = '#8b5cf6'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b'; }}
+                >
+                    📖 Panduan
+                </button>
             </div>
 
             {/* Balance Cards */}

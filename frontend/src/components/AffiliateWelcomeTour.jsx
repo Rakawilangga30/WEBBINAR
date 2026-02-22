@@ -64,9 +64,16 @@ const AFFILIATE_TOUR_STEPS = [
     },
 ];
 
-export default function AffiliateWelcomeTour() {
+export default function AffiliateWelcomeTour({ open: forceOpen, onClose: externalClose }) {
     const [visible, setVisible] = useState(false);
     const [step, setStep] = useState(0);
+
+    useEffect(() => {
+        if (forceOpen) {
+            setStep(0);
+            setVisible(true);
+        }
+    }, [forceOpen]);
 
     useEffect(() => {
         const seen = localStorage.getItem('affiliate_tour_done');
@@ -76,6 +83,7 @@ export default function AffiliateWelcomeTour() {
     const handleClose = () => {
         localStorage.setItem('affiliate_tour_done', '1');
         setVisible(false);
+        if (externalClose) externalClose();
     };
 
     if (!visible) return null;

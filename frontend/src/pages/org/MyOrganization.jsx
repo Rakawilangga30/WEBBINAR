@@ -137,9 +137,11 @@ export default function MyOrganization() {
         }
     };
 
+    const [showTour, setShowTour] = useState(false);
+
     return (
         <div>
-            <OrgWelcomeTour />
+            <OrgWelcomeTour open={showTour} onClose={() => setShowTour(false)} />
             {/* Header */}
             <div style={{
                 display: "flex",
@@ -157,21 +159,41 @@ export default function MyOrganization() {
                         Kelola profil dan event organisasi Anda
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowCreate(true)}
-                    style={{
-                        background: "linear-gradient(135deg, #3b82f6, #2563eb)",
-                        color: "white",
-                        padding: "10px 20px",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        fontWeight: "600",
-                        fontSize: "0.9rem"
-                    }}
-                >
-                    ➕ Buat Event Baru
-                </button>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => setShowTour(true)}
+                        style={{
+                            background: "transparent",
+                            color: "#64748b",
+                            padding: "10px 18px",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontWeight: "500",
+                            fontSize: "0.9rem",
+                            display: "flex", alignItems: "center", gap: "6px"
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.color = '#3b82f6'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b'; }}
+                    >
+                        📖 Panduan
+                    </button>
+                    <button
+                        onClick={() => setShowCreate(true)}
+                        style={{
+                            background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+                            color: "white",
+                            padding: "10px 20px",
+                            border: "none",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontWeight: "600",
+                            fontSize: "0.9rem"
+                        }}
+                    >
+                        ➕ Buat Event Baru
+                    </button>
+                </div>
             </div>
 
             {/* Organization Profile Section */}

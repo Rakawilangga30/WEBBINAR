@@ -44,9 +44,16 @@ const ORG_TOUR_STEPS = [
     },
 ];
 
-export default function OrgWelcomeTour() {
+export default function OrgWelcomeTour({ open: forceOpen, onClose: externalClose }) {
     const [visible, setVisible] = useState(false);
     const [step, setStep] = useState(0);
+
+    useEffect(() => {
+        if (forceOpen) {
+            setStep(0);
+            setVisible(true);
+        }
+    }, [forceOpen]);
 
     useEffect(() => {
         const seen = localStorage.getItem('org_tour_done');
@@ -56,6 +63,7 @@ export default function OrgWelcomeTour() {
     const handleClose = () => {
         localStorage.setItem('org_tour_done', '1');
         setVisible(false);
+        if (externalClose) externalClose();
     };
 
     if (!visible) return null;
