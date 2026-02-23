@@ -252,6 +252,12 @@ export default function EventDetail() {
     const handlePlayVideo = async (videoUrl) => {
         if (!videoUrl) return toast.error("URL video tidak valid!");
         try {
+            // Jika sudah URL lengkap (Supabase), langsung pakai
+            if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+                setActiveVideoUrl(videoUrl);
+                return;
+            }
+            // Fallback: signed URL untuk file lokal legacy
             const filename = videoUrl.split(/[/\\]/).pop();
             const res = await api.get(`/user/sessions/signed-video/${filename}`);
             const fullUrl = getBackendUrl(res.data.url);
@@ -264,6 +270,12 @@ export default function EventDetail() {
     const handleOpenFile = async (fileUrl, fileTitle) => {
         if (!fileUrl) return toast.error("URL file tidak valid!");
         try {
+            // Jika sudah URL lengkap (Supabase), langsung pakai
+            if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+                setActiveDocument({ url: fileUrl, title: fileTitle || fileUrl.split('/').pop() });
+                return;
+            }
+            // Fallback: signed URL untuk file lokal legacy
             const filename = fileUrl.split(/[/\\]/).pop();
             const res = await api.get(`/user/sessions/signed-file/${filename}`);
             const fullUrl = getBackendUrl(res.data.url);
@@ -272,6 +284,7 @@ export default function EventDetail() {
             toast.error("Gagal memuat file!");
         }
     };
+
 
     // Loading State
     if (loading) {

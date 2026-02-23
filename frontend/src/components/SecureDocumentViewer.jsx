@@ -229,31 +229,40 @@ export default function SecureDocumentViewer({ src, title = 'Document Viewer', o
                                     Konten Terlindungi
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: '#15803d' }}>
-                                    Download tidak diizinkan
+                                    Download langsung tidak diizinkan
                                 </div>
                             </div>
                         </div>
 
-                        <div style={{
-                            padding: '16px 24px',
-                            background: '#dbeafe',
-                            border: '1px solid #93c5fd',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px'
-                        }}>
-                            <span style={{ fontSize: '1.5rem' }}>📚</span>
+                        {/* Tombol buka di tab baru sebagai fallback */}
+                        <a
+                            href={src}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                                padding: '16px 24px',
+                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                border: 'none',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                textDecoration: 'none',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <span style={{ fontSize: '1.5rem' }}>🔗</span>
                             <div style={{ textAlign: 'left' }}>
-                                <div style={{ fontWeight: '600', color: '#1e40af', fontSize: '0.9rem' }}>
-                                    Materi Tersedia
+                                <div style={{ fontWeight: '600', color: 'white', fontSize: '0.9rem' }}>
+                                    Buka File
                                 </div>
-                                <div style={{ fontSize: '0.8rem', color: '#1d4ed8' }}>
-                                    Pelajari di platform ini
+                                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)' }}>
+                                    Lihat di tab baru
                                 </div>
                             </div>
-                        </div>
+                        </a>
                     </div>
+
 
                     {isLocalhost && (
                         <p style={{
