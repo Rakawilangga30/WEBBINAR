@@ -4,7 +4,7 @@ import {
   Rocket, BarChart2, PlusCircle, Package, DollarSign,
   LayoutDashboard, Building, FileText, CheckSquare,
   Users, Star, Megaphone, LogOut, Handshake, Wallet,
-  UserCheck, Image
+  UserCheck, Image, TrendingUp
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -184,6 +184,7 @@ export default function Sidebar() {
             <SectionTitle>Affiliate Area</SectionTitle>
             <MenuItem to="/dashboard/affiliate" label="Dashboard" icon={BarChart2} />
             <MenuItem to="/dashboard/affiliate/partnerships" label="Kode Promo Saya" icon={Handshake} />
+            <MenuItem to="/dashboard/affiliate/analytics" label="Statistik" icon={TrendingUp} />
             <MenuItem to="/dashboard/affiliate/withdraw" label="Tarik Dana" icon={DollarSign} />
           </>
         )}
@@ -194,6 +195,7 @@ export default function Sidebar() {
             <SectionTitle>Creator Area</SectionTitle>
             <MenuItem to="/dashboard/org" label="Dashboard Org" icon={Building} />
             <MenuItem to="/dashboard/org/events" label="Manajemen Event" icon={FileText} />
+            <MenuItem to="/dashboard/org/analytics" label="Statistik & Analitik" icon={TrendingUp} />
             <MenuItem to="/dashboard/org/affiliate-requests" label="Kelola Affiliate" icon={UserCheck} />
             <MenuItem to="/dashboard/org/affiliate-stats" label="Statistik Affiliate" icon={BarChart2} />
             <MenuItem to="/dashboard/org/affiliate-withdrawals" label="Konfirmasi Payout Affiliate" icon={CheckSquare} />
@@ -206,6 +208,7 @@ export default function Sidebar() {
         {roles.includes("ADMIN") && (
           <>
             <SectionTitle>Admin Area</SectionTitle>
+            <MenuItem to="/dashboard/admin/analytics" label="Analytics & Statistik" icon={TrendingUp} />
             <MenuItem to="/dashboard/admin/organizations" label="Kelola Organisasi" icon={Building} />
             <MenuItem to="/dashboard/admin/approvals" label="Persetujuan Org" icon={CheckSquare} />
             <MenuItem to="/dashboard/admin/withdrawals" label="Kelola Penarikan" icon={Wallet} />

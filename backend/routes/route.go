@@ -139,6 +139,7 @@ func RegisterRoutes(r *gin.Engine) {
 		affiliate.GET("/balance", controllers.GetAffiliateBalance)
 		affiliate.POST("/withdraw", controllers.SimulateWithdraw)
 		affiliate.GET("/withdrawals", controllers.GetWithdrawalHistory)
+		affiliate.GET("/analytics", controllers.GetAffiliateAnalytics)
 		affiliate.POST("/withdrawal-request", controllers.RequestAffiliateWithdrawal)
 	}
 
@@ -208,6 +209,7 @@ func RegisterRoutes(r *gin.Engine) {
 		org.PUT("/affiliate-requests/:id/toggle-active", controllers.ToggleAffiliateActive)
 		org.DELETE("/affiliate-requests/:id", controllers.DeleteAffiliatePartnership)
 		org.GET("/affiliate-stats", controllers.GetOrgAffiliateStats)
+		org.GET("/analytics", controllers.GetOrgAnalytics)
 	}
 
 	// ==========================================
@@ -286,6 +288,9 @@ func RegisterRoutes(r *gin.Engine) {
 		admin.GET("/official-org/sessions/:sessionId/quiz", controllers.GetOfficialOrgSessionQuiz)
 		admin.POST("/official-org/sessions/:sessionId/quiz", controllers.SaveOfficialOrgSessionQuiz)
 		admin.DELETE("/official-org/sessions/:sessionId/quiz", controllers.DeleteOfficialOrgSessionQuiz)
+
+		// Analytics
+		admin.GET("/analytics", controllers.GetAdminAnalytics)
 
 		// Reports Management
 		admin.GET("/reports", controllers.GetReports)

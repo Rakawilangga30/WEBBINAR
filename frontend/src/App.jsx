@@ -31,6 +31,7 @@ import AffiliateEvents from "./pages/affiliate/AffiliateEvents";
 import AffiliateSubmitEvent from "./pages/affiliate/AffiliateSubmitEvent";
 import AffiliateWithdrawal from "./pages/affiliate/AffiliateWithdrawal";
 import AffiliatePartnerships from "./pages/affiliate/AffiliatePartnerships";
+import AffiliateAnalytics from "./pages/affiliate/AffiliateAnalytics";
 
 // PROTECTED PAGES - Organization
 import MyOrganization from "./pages/org/MyOrganization";
@@ -43,6 +44,7 @@ import OrgAffiliateRequests from "./pages/org/OrgAffiliateRequests";
 import OrgAffiliateStats from "./pages/org/OrgAffiliateStats";
 import OrgWithdraw from "./pages/org/OrgWithdraw";
 import OrgAffiliateWithdrawals from "./pages/org/OrgAffiliateWithdrawals";
+import OrgAnalytics from "./pages/org/OrgAnalytics";
 
 // PROTECTED PAGES - Admin
 import UserList from "./pages/admin/UserList";
@@ -60,6 +62,7 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminFeaturedEvents from "./pages/admin/AdminFeaturedEvents";
 import AdminAds from "./pages/admin/AdminAds";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
 
 function App() {
   return (
@@ -93,6 +96,7 @@ function App() {
           <Route path="affiliate/submit" element={<AffiliateSubmitEvent />} />
           <Route path="affiliate/withdraw" element={<AffiliateWithdrawal />} />
           <Route path="affiliate/partnerships" element={<AffiliatePartnerships />} />
+          <Route path="affiliate/analytics" element={<AffiliateAnalytics />} />
 
           {/* Organization Routes */}
           <Route path="org" element={<MyOrganization />} />
@@ -105,6 +109,7 @@ function App() {
           <Route path="org/affiliate-withdrawals" element={<OrgAffiliateWithdrawals />} />
           <Route path="org/affiliate-requests" element={<OrgAffiliateRequests />} />
           <Route path="org/affiliate-stats" element={<OrgAffiliateStats />} />
+          <Route path="org/analytics" element={<OrgAnalytics />} />
 
           {/* Admin Routes */}
           <Route path="admin/users" element={<UserList />} />
@@ -122,6 +127,7 @@ function App() {
           <Route path="admin/featured" element={<AdminFeaturedEvents />} />
           <Route path="admin/ads" element={<AdminAds />} />
           <Route path="admin/withdrawals" element={<AdminWithdrawals />} />
+          <Route path="admin/analytics" element={<AdminAnalytics />} />
         </Route>
 
         {/* 404 */}
